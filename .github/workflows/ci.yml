@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+        env:
+          # Build never connects to the DB (getDb is lazy), but these keep the
+          # app's env validation happy during the production build.
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          GUESS_SECRET: ci-dummy-secret-not-used-at-build
+          ADMIN_TOKEN: ci-dummy-token-not-used-at-build
+          NEXT_PUBLIC_SITE_NAME: WatchCrop
+          NEXT_PUBLIC_GAME_LIVE: "false"
