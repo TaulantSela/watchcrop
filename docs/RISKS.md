@@ -16,7 +16,7 @@
 
 **What to avoid, flatly:** brand press kits (editorial-only), marketplace listings (eBay/Chrono24 — owned by sellers), Google Images, "free" stock that's actually editorial-tier.
 
-**The guardrail in code:** [app/api/admin/route.ts](../app/api/admin/route.ts) **refuses to schedule any watch missing `photoSource`** (the "provenance gate"). Don't remove it. Keep a per-image provenance record (`photoSource`, `photoLicense`, `attribution` columns already exist in [db/schema.ts](../db/schema.ts)).
+**The guardrail in code:** [lib/provenance.ts](../lib/provenance.ts) is the "provenance gate": [app/api/admin/route.ts](../app/api/admin/route.ts) refuses to schedule a watch with no recorded photo source, a community photo (a lead, not content), a licensed photo without its license, CC BY without attribution, a `distinctiveDesign` watch not shot by you, or crops without a logo sign-off (`logoQaAt`, cleared whenever the crops change). The admin form has **no default** photo source on purpose. Don't remove any of it. Keep a per-image provenance record (`photoSource`, `photoLicense`, `attribution` columns already exist in [db/schema.ts](../db/schema.ts)).
 
 **Cheap validation (do before building a library):** for your first ~90 target watches, write down where each photo would actually come from. If >30% isn't "I'll shoot it" or "paid/verified CC-BY", the pipeline is broken.
 

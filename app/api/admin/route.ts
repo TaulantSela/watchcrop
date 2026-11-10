@@ -1,81 +1,168 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { desc, eq } from "drizzle-orm";
+import { eq, min } from "drizzle-orm";
 import { getDb } from "@/db";
-import { puzzles, watches } from "@/db/schema";
+import { aliases, puzzles, watches } from "@/db/schema";
+import { isAdminToken } from "@/lib/admin-auth";
+import { todayKey } from "@/lib/daily";
+import { normalize } from "@/lib/normalize";
+import { PHOTO_SOURCES, schedulingProblems } from "@/lib/provenance";
+import { puzzleNumberFor } from "@/lib/schedule";
 
 export const runtime = "nodejs";
 
-function authed(req: Request): boolean {
-  const token = req.headers.get("x-admin-token");
-  return !!token && !!process.env.ADMIN_TOKEN && token === process.env.ADMIN_TOKEN;
-}
+const optText = (max: number) => z.string().trim().max(max).optional();
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+const CropSpec = z.object({
+  x: z.number().int().min(0),
+  y: z.number().int().min(0),
+  w: z.number().int().positive(),
+  h: z.number().int().positive(),
+  blur: z.number().min(0).max(50),
+});
 
 const AddWatch = z.object({
   action: z.literal("addWatch"),
-  brand: z.string().min(1),
-  model: z.string().min(1),
-  reference: z.string().optional(),
-  year: z.coerce.number().int().optional(),
-  movement: z.string().optional(),
+  brand: z.string().trim().min(1).max(80),
+  model: z.string().trim().min(1).max(120),
+  reference: optText(60),
+  year: z.coerce.number().int().min(1800).max(2100).optional(),
+  movement: optText(120),
   priceTier: z.enum(["entry", "mid", "luxury", "grail"]).default("mid"),
   difficultyWeight: z.coerce.number().int().min(1).max(5).default(2),
-  specBullets: z.array(z.string()).default([]),
-  affiliateRef: z.string().optional(),
-  affiliateUrl: z.string().url().optional(),
+  specBullets: z.array(z.string().trim().max(200)).max(10).default([]),
+  affiliateRef: z.string().regex(/^[a-z0-9-]{1,64}$/, "lowercase letters, digits and dashes").optional(),
+  // http(s) only: a javascript: URL is a valid URL too.
+  affiliateUrl: z.string().url().max(2000).refine((u) => /^https?:\/\//.test(u), "http(s) only").optional(),
+  // Required, no default: someone has to actually say where the photo came from.
+  photoSource: z.enum(PHOTO_SOURCES),
+  photoLicense: optText(500),
+  attribution: optText(500),
   distinctiveDesign: z.boolean().default(false),
-  photoSource: z.enum(["own", "licensed", "cc-by", "community"]).optional(),
-  photoLicense: z.string().optional(),
-  attribution: z.string().optional(),
+  masterBlobKey: optText(200),
+  cropSpecs: z.array(CropSpec).length(6).optional(),
+  brandAliases: z.array(z.string().max(60)).max(20).default([]),
+  modelAliases: z.array(z.string().max(60)).max(20).default([]),
 });
 
-const Schedule = z.object({
-  action: z.literal("schedule"),
+const SetCrops = z.object({
+  action: z.literal("setCrops"),
   watchId: z.coerce.number().int(),
-  puzzleDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  masterBlobKey: z.string().trim().min(1).max(200),
+  cropSpecs: z.array(CropSpec).length(6),
 });
 
-const Body = z.discriminatedUnion("action", [AddWatch, Schedule]);
+const MarkQa = z.object({ action: z.literal("markQa"), watchId: z.coerce.number().int() });
+const Schedule = z.object({ action: z.literal("schedule"), watchId: z.coerce.number().int(), puzzleDate: day });
+const Unschedule = z.object({ action: z.literal("unschedule"), puzzleDate: day });
+
+const Body = z.discriminatedUnion("action", [AddWatch, SetCrops, MarkQa, Schedule, Unschedule]);
+
+const fail = (status: number, error: string, extra: Record<string, unknown> = {}) =>
+  NextResponse.json({ error, ...extra }, { status });
 
 export async function POST(req: Request) {
-  if (!authed(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!isAdminToken(req.headers.get("x-admin-token"))) return fail(401, "unauthorized");
 
   let body;
   try {
     body = Body.parse(await req.json());
   } catch (e) {
-    return NextResponse.json({ error: "bad request", detail: String(e) }, { status: 400 });
+    const detail = e instanceof z.ZodError ? e.issues.map((i) => `${i.path.join(".")}: ${i.message}`) : [];
+    return fail(400, "bad request", { detail });
   }
 
   const db = await getDb();
+  const today = todayKey();
+  const findWatch = async (id: number) =>
+    (await db.select().from(watches).where(eq(watches.id, id)).limit(1))[0];
 
-  if (body.action === "addWatch") {
-    const { action: _a, ...values } = body;
-    const [row] = await db.insert(watches).values(values).returning({ id: watches.id });
-    return NextResponse.json({ ok: true, id: row.id });
+  switch (body.action) {
+    case "addWatch": {
+      const { action: _a, brandAliases, modelAliases, ...values } = body;
+      if (values.affiliateRef) {
+        const [dupe] = await db
+          .select({ id: watches.id })
+          .from(watches)
+          .where(eq(watches.affiliateRef, values.affiliateRef))
+          .limit(1);
+        if (dupe) return fail(409, `affiliate ref "${values.affiliateRef}" is already used by watch #${dupe.id}`);
+      }
+      const id = await db.transaction(async (tx) => {
+        const [row] = await tx.insert(watches).values(values).returning({ id: watches.id });
+        const rows = [
+          ...brandAliases.map((a) => ({ kind: "brand", alias: normalize(a), canonical: normalize(values.brand), brand: null })),
+          ...modelAliases.map((a) => ({
+            kind: "model",
+            alias: normalize(a),
+            canonical: normalize(values.model),
+            brand: normalize(values.brand),
+          })),
+        ].filter((r) => r.alias);
+        if (rows.length) await tx.insert(aliases).values(rows);
+        return row.id;
+      });
+      return NextResponse.json({ ok: true, id });
+    }
+
+    case "setCrops": {
+      if (!(await findWatch(body.watchId))) return fail(404, "no such watch");
+      // New crops are unchecked crops: the logo QA has to be redone.
+      await db
+        .update(watches)
+        .set({ masterBlobKey: body.masterBlobKey, cropSpecs: body.cropSpecs, logoQaAt: null })
+        .where(eq(watches.id, body.watchId));
+      return NextResponse.json({ ok: true });
+    }
+
+    case "markQa": {
+      const w = await findWatch(body.watchId);
+      if (!w) return fail(404, "no such watch");
+      if (!w.masterBlobKey || (w.cropSpecs?.length ?? 0) !== 6) {
+        return fail(422, "set the master photo and all 6 crops before signing off the logo check");
+      }
+      await db.update(watches).set({ logoQaAt: new Date() }).where(eq(watches.id, body.watchId));
+      return NextResponse.json({ ok: true });
+    }
+
+    case "schedule": {
+      if (body.puzzleDate < today) return fail(422, "can't schedule a day that has already started or passed");
+      const w = await findWatch(body.watchId);
+      if (!w) return fail(404, "no such watch");
+      const problems = schedulingProblems(w);
+      if (problems.length) return fail(422, "this watch can't be scheduled yet", { problems });
+
+      const [taken] = await db
+        .select({ n: puzzles.puzzleNumber })
+        .from(puzzles)
+        .where(eq(puzzles.puzzleDate, body.puzzleDate))
+        .limit(1);
+      if (taken) return fail(409, `${body.puzzleDate} is already scheduled (#${taken.n})`);
+
+      const [{ first }] = await db.select({ first: min(puzzles.puzzleDate) }).from(puzzles);
+      if (first && body.puzzleDate < first) {
+        return fail(422, `numbers follow the calendar from puzzle #1 (${first}); can't schedule before it`);
+      }
+      const puzzleNumber = puzzleNumberFor(body.puzzleDate, first ?? body.puzzleDate);
+      try {
+        await db.insert(puzzles).values({ watchId: body.watchId, puzzleDate: body.puzzleDate, puzzleNumber });
+      } catch (err) {
+        console.error("schedule insert failed", err);
+        return fail(409, "the schedule changed while saving; reload and try again");
+      }
+      return NextResponse.json({ ok: true, puzzleNumber });
+    }
+
+    case "unschedule": {
+      // Only future days: today's puzzle is live and past numbers are in shares.
+      if (body.puzzleDate <= today) return fail(422, "only future days can be unscheduled");
+      const removed = await db
+        .delete(puzzles)
+        .where(eq(puzzles.puzzleDate, body.puzzleDate))
+        .returning({ n: puzzles.puzzleNumber });
+      if (!removed.length) return fail(404, "nothing scheduled that day");
+      return NextResponse.json({ ok: true });
+    }
   }
-
-  // schedule: refuse watches missing photo provenance (compliance gate)
-  const [w] = await db.select().from(watches).where(eq(watches.id, body.watchId)).limit(1);
-  if (!w) return NextResponse.json({ error: "no such watch" }, { status: 404 });
-  if (!w.photoSource) {
-    return NextResponse.json(
-      { error: "watch is missing photo_source — refusing to schedule (provenance gate)" },
-      { status: 422 },
-    );
-  }
-
-  const [last] = await db
-    .select({ n: puzzles.puzzleNumber })
-    .from(puzzles)
-    .orderBy(desc(puzzles.puzzleNumber))
-    .limit(1);
-  const puzzleNumber = (last?.n ?? 0) + 1;
-
-  try {
-    await db.insert(puzzles).values({ watchId: body.watchId, puzzleDate: body.puzzleDate, puzzleNumber });
-  } catch {
-    return NextResponse.json({ error: "that date is already scheduled" }, { status: 409 });
-  }
-  return NextResponse.json({ ok: true, puzzleNumber });
 }

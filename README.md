@@ -66,9 +66,9 @@ The answer (brand/model/reference/full image/affiliate link) is **never serializ
 
 Copyright lives in the **photograph**, owned by whoever took it — not the brand, not the watch owner. **Cropping and hiding the logo do NOT cure copyright infringement.** A daily game that grabs web images manufactures one fresh, willful infringement per day.
 
-The only safe backbone is **shoot your own** (`photoSource: "own"` — you own the copyright the instant the shutter fires). The scheduler **refuses to schedule any watch missing `photo_source`** as a guardrail. Fill the catalog by borrowing watches from local ADs / microbrands / collectors in exchange for the affiliate link + a reveal credit. License only the *metadata* (specs), never wire stock/marketplace/press-kit images into puzzles. Community submissions are **lead-gen** (which watch to shoot), not a content source.
+The only safe backbone is **shoot your own** (`photoSource: "own"` — you own the copyright the instant the shutter fires). The scheduler **refuses any watch that fails the provenance gate** ([lib/provenance.ts](lib/provenance.ts)): no recorded photo source, a community photo, a licensed photo without its license, CC BY without attribution, a protected design not shot by you, or crops nobody has signed off for surviving logos. Fill the catalog by borrowing watches from local ADs / microbrands / collectors in exchange for the affiliate link + a reveal credit. License only the *metadata* (specs), never wire stock/marketplace/press-kit images into puzzles. Community submissions are **lead-gen** (which watch to shoot), not a content source.
 
-The demo art (`lib/cropImage.ts`) is generated SVG — zero real photos, zero rights exposure — so you can run and demo the whole loop today. `scripts/cut.ts` is the production path: cut 6 crops from your own master with `sharp`, **human-QA that no logo survived**, then serve them from Blob.
+The demo art (`lib/cropImage.ts`) is generated SVG — zero real photos, zero rights exposure — so you can run and demo the whole loop today. `scripts/cut.ts` is the production path: cut 6 crops from your own master with `sharp` into `./crops` (never `public/`, which would serve crop 6 to anyone), **human-QA that no logo survived** and sign it off in `/admin/crop`, then serve them from Blob.
 
 ## De-risk playbook (do this before the content treadmill)
 

@@ -15,6 +15,13 @@
       "when": 1794335174340,
       "tag": "0001_game_fixes",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794335835410,
+      "tag": "0002_admin_pipeline",
+      "breakpoints": true
     }
   ]
 }
