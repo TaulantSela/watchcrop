@@ -2,8 +2,10 @@ import { desc, eq, gte } from "drizzle-orm";
 import { getDb } from "@/db";
 import { puzzles, watches } from "@/db/schema";
 import { AdminClient, type AdminWatch, type UpcomingDay } from "@/components/AdminClient";
+import { DemandPanel } from "@/components/DemandPanel";
 import { isAdminToken } from "@/lib/admin-auth";
 import { todayKey } from "@/lib/daily";
+import { getDemandStats } from "@/lib/demand";
 import { schedulingProblems } from "@/lib/provenance";
 import { addDays, runway } from "@/lib/schedule";
 
@@ -27,13 +29,14 @@ export default async function Admin({
 
   const today = todayKey();
   const db = await getDb();
-  const [allWatches, ahead] = await Promise.all([
+  const [allWatches, ahead, demand] = await Promise.all([
     db.select().from(watches).orderBy(desc(watches.id)),
     db
       .select({ date: puzzles.puzzleDate, n: puzzles.puzzleNumber, brand: watches.brand, model: watches.model })
       .from(puzzles)
       .innerJoin(watches, eq(puzzles.watchId, watches.id))
       .where(gte(puzzles.puzzleDate, today)),
+    getDemandStats(),
   ]);
 
   const byDate = new Map(ahead.map((p) => [p.date, p]));
@@ -58,7 +61,8 @@ export default async function Admin({
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
-      <h1 className="mb-6 text-2xl font-bold">Admin · content</h1>
+      <h1 className="mb-6 text-2xl font-bold">Admin</h1>
+      <DemandPanel stats={demand} token={token} />
       <AdminClient
         token={token}
         today={today}
