@@ -65,7 +65,7 @@ Affiliate links require **clear disclosure**; sponsored puzzles require **"spons
 Current scaffold (fix before/at launch):
 
 - **No rate limiting on `/api/guess`.** A scraper could brute-force the catalog to map crop→answer. Add Upstash Redis rate limiting (also powers the live "X solved today" counter). Tracked in [ROADMAP.md](ROADMAP.md).
-- **Client can force the reveal early** by POSTing `final:true` — but it only spoils *their own* game (no per-user server state without accounts). Acceptable for MVP.
+- **Client can force the reveal early** by POSTing `kind: "giveUp"`, and clearing storage restarts the day at crop 1 — but both only spoil *their own* game (no per-user server state without accounts). Acceptable for MVP. Crops themselves unlock strictly in order: `/api/guess` demands the token of the crop being acted on.
 - **Admin token is passed in the URL query** (`/admin/crop?token=…`) and as a header for the API. Fine for a solo operator over HTTPS, but it can leak via browser history / referer logs. Move to a proper auth/session before adding any collaborator.
 - **Demo secrets** in [.env](../.env) (`GUESS_SECRET`, `ADMIN_TOKEN`) are weak placeholders. Generate real ones (`openssl rand -hex 32`) for any deployment — and never commit `.env`.
 

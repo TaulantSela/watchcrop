@@ -29,9 +29,9 @@ export function GET(req: Request) {
         }}
       >
         <div style={{ fontSize: 40, color: "#c9a24b", fontWeight: 700 }}>{SITE}</div>
-        <div style={{ fontSize: 90, fontWeight: 800, marginTop: 12 }}>#{n}</div>
-        <div style={{ fontSize: 56, marginTop: 8 }}>solved {result}</div>
-        <div style={{ fontSize: 32, color: "#8b93a7", marginTop: 16 }}>🔥 streak {streak}</div>
+        <div style={{ fontSize: 90, fontWeight: 800, marginTop: 12 }}>{`#${n}`}</div>
+        <div style={{ fontSize: 56, marginTop: 8 }}>{`solved ${result}`}</div>
+        <div style={{ fontSize: 32, color: "#8b93a7", marginTop: 16 }}>{`🔥 streak ${streak}`}</div>
         <div style={{ fontSize: 26, color: "#8b93a7", marginTop: 40 }}>name the watch · daily</div>
       </div>
     ),

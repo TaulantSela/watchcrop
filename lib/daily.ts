@@ -24,3 +24,10 @@ export function secondsUntilNext(now: Date = new Date()): number {
   );
   return Math.max(0, Math.floor((nextMidnight.getTime() - shifted.getTime()) / 1000));
 }
+
+/** The day key before `date` (YYYY-MM-DD), for streak continuity. */
+export function previousDayKey(date: string): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}

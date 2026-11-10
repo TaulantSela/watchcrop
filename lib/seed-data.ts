@@ -95,7 +95,12 @@ export async function seedDatabase(db: AnyDb): Promise<{ watches: number; aliase
     for (const a of brandAliases ?? [])
       aliasRows.push({ kind: "brand", alias: normalize(a), canonical: normalize(w.brand) });
     for (const a of modelAliases ?? [])
-      aliasRows.push({ kind: "model", alias: normalize(a), canonical: normalize(w.model) });
+      aliasRows.push({
+        kind: "model",
+        alias: normalize(a),
+        canonical: normalize(w.model),
+        brand: normalize(w.brand),
+      });
 
     await db.insert(puzzles).values({
       watchId: row.id,

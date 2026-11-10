@@ -1,5 +1,5 @@
 import "server-only";
-import { MAX_CROPS, secondsUntilNext } from "./daily";
+import { MAX_CROPS } from "./daily";
 import { solvedToday } from "./game";
 import { cropUrl } from "./sign";
 import type { watches } from "@/db/schema";
@@ -22,6 +22,5 @@ export async function buildReveal(date: string, watch: typeof watches.$inferSele
     shopUrl: watch.affiliateRef ? `/go/${watch.affiliateRef}` : null,
     marketUrl: `https://www.chrono24.com/search/index.htm?query=${encodeURIComponent(query)}`,
     solvedToday: await solvedToday(date),
-    secondsUntilNext: secondsUntilNext(),
   };
 }
