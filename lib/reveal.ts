@@ -16,6 +16,8 @@ export async function buildReveal(date: string, watch: typeof watches.$inferSele
     year: watch.year,
     movement: watch.movement,
     specBullets: watch.specBullets ?? [],
+    // Safe once revealed; lets the client show the Horology Score.
+    difficultyWeight: watch.difficultyWeight,
     fullImageUrl: cropUrl(date, MAX_CROPS - 1),
     // Affiliate "Shop this reference" CTA — null when there's no affiliate path
     // (grail/vintage), where we fall back to a non-monetized market link.
