@@ -80,8 +80,8 @@ The full state machine (brand/model stages, partial grace, skip, give-up) lives 
 
 See [db/schema.ts](../db/schema.ts). Six tables:
 
-- **`watches`** — the catalog. Note `cropSpecs` (the 6 crop rectangles), `distinctiveDesign` (trade-dress watchlist), and the **provenance columns** (`photoSource`, `photoLicense`, `attribution`).
-- **`puzzles`** — the daily schedule: one row per `puzzleDate` (unique), with a `puzzleNumber` and a `watchId`.
+- **`watches`** — the catalog. Note `cropSpecs` (the 6 crop rectangles), `distinctiveDesign` (trade-dress watchlist), the **provenance columns** (`photoSource`, `photoLicense`, `attribution`), and `logoQaAt` (the human logo sign-off). The scheduling gate over all of these is [lib/provenance.ts](../lib/provenance.ts).
+- **`puzzles`** — the daily schedule: one row per `puzzleDate` (unique), with a `puzzleNumber` and a `watchId`. Numbers follow the calendar from the first scheduled day ([lib/schedule.ts](../lib/schedule.ts)), never the order puzzles were scheduled in.
 - **`aliases`** — `alias → canonical` for brands and models (e.g. `ap → audemars piguet`, `sub → submariner`), stored already-normalized.
 - **`guessesLog`** — anonymous guess log for difficulty tuning + the "X solved today" counter.
 - **`waitlist`** — the durable asset: captured emails.
@@ -105,4 +105,4 @@ No cron is needed to *pick* the puzzle. [lib/daily.ts](../lib/daily.ts) computes
 ## Images: demo vs production
 
 - **Demo (now):** [lib/cropImage.ts](../lib/cropImage.ts) generates a stylized SVG watch that zooms out by crop index. Zero real photos → zero rights exposure → the loop runs immediately.
-- **Production:** [scripts/cut.ts](../scripts/cut.ts) cuts the 6 crops from a master photo you own (using `sharp` + the `cropSpecs` rectangles), to be stored on Vercel Blob. You then change the crop route to serve those files instead of the SVG. The token gating stays identical. **A human must QA that no logo survived before the watch is scheduled.**
+- **Production:** [scripts/cut.ts](../scripts/cut.ts) cuts the 6 crops from a master photo you own (using `sharp` + the `cropSpecs` rectangles), to be stored on Vercel Blob. You then change the crop route to serve those files instead of the SVG. The token gating stays identical. **A human must QA that no logo survived** and sign it off in `/admin/crop` before the scheduler accepts the watch. The script writes to `./crops`, never `public/`, which is served to anyone and would bypass the tokens.
