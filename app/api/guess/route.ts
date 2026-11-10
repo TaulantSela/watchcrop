@@ -19,7 +19,7 @@ const Body = z.object({
   model: z.string().max(120).default(""),
   /** Model stage only: the client has no retries left on the last crop. */
   final: z.boolean().default(false),
-  playerId: z.string().uuid().optional(),
+  playerId: z.uuid().optional(),
 });
 
 export async function POST(req: Request) {

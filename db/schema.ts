@@ -51,11 +51,11 @@ export const watches = pgTable(
 
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => ({
+  (t) => [
     // /go/[ref] picks the first match, so a duplicate ref would silently send
     // clicks to the wrong watch.
-    affiliateRefUnique: uniqueIndex("watches_affiliate_ref_unique").on(t.affiliateRef),
-  }),
+    uniqueIndex("watches_affiliate_ref_unique").on(t.affiliateRef),
+  ],
 );
 
 /** The daily schedule. One watch per UTC day. */
@@ -71,10 +71,10 @@ export const puzzles = pgTable(
     sponsored: boolean("sponsored").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => ({
-    dateUnique: uniqueIndex("puzzles_date_unique").on(t.puzzleDate),
-    numberUnique: uniqueIndex("puzzles_number_unique").on(t.puzzleNumber),
-  }),
+  (t) => [
+    uniqueIndex("puzzles_date_unique").on(t.puzzleDate),
+    uniqueIndex("puzzles_number_unique").on(t.puzzleNumber),
+  ],
 );
 
 /** Brand/model spelling aliases so "AP" -> "Audemars Piguet", "sub" -> "Submariner". */
@@ -89,9 +89,9 @@ export const aliases = pgTable(
     // mean a different model for Rolex than for Grand Seiko. Null = any brand.
     brand: text("brand"),
   },
-  (t) => ({
-    aliasIdx: index("aliases_alias_idx").on(t.alias),
-  }),
+  (t) => [
+    index("aliases_alias_idx").on(t.alias),
+  ],
 );
 
 /** Anonymous guess log for difficulty tuning + the "X solved today" counter. */
@@ -110,9 +110,9 @@ export const guessesLog = pgTable(
     playerId: text("player_id"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => ({
-    solvedIdx: index("guesses_log_date_solved_idx").on(t.puzzleDate, t.solved),
-  }),
+  (t) => [
+    index("guesses_log_date_solved_idx").on(t.puzzleDate, t.solved),
+  ],
 );
 
 /** The de-risk asset: the waitlist email list. */
@@ -129,9 +129,9 @@ export const waitlist = pgTable(
     referrerHost: text("referrer_host"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => ({
-    emailUnique: uniqueIndex("waitlist_email_unique").on(t.email),
-  }),
+  (t) => [
+    uniqueIndex("waitlist_email_unique").on(t.email),
+  ],
 );
 
 /**
@@ -150,9 +150,9 @@ export const visits = pgTable(
     referrerHost: text("referrer_host"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => ({
-    createdIdx: index("visits_created_idx").on(t.createdAt),
-  }),
+  (t) => [
+    index("visits_created_idx").on(t.createdAt),
+  ],
 );
 
 /** Tracked affiliate clicks so you can measure real EPC (not the affiliate dashboard's). */
