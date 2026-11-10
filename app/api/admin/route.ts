@@ -34,7 +34,7 @@ const AddWatch = z.object({
   specBullets: z.array(z.string().trim().max(200)).max(10).default([]),
   affiliateRef: z.string().regex(/^[a-z0-9-]{1,64}$/, "lowercase letters, digits and dashes").optional(),
   // http(s) only: a javascript: URL is a valid URL too.
-  affiliateUrl: z.string().url().max(2000).refine((u) => /^https?:\/\//.test(u), "http(s) only").optional(),
+  affiliateUrl: z.url().max(2000).refine((u) => /^https?:\/\//.test(u), "http(s) only").optional(),
   // Required, no default: someone has to actually say where the photo came from.
   photoSource: z.enum(PHOTO_SOURCES),
   photoLicense: optText(500),

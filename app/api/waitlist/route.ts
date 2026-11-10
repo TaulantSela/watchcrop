@@ -6,7 +6,7 @@ import { waitlist } from "@/db/schema";
 const opt = (max: number) => z.string().trim().max(max).optional();
 
 const Body = z.object({
-  email: z.string().email().max(320),
+  email: z.email().max(320),
   source: opt(64),
   utmSource: opt(64),
   utmMedium: opt(64),
