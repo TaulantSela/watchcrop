@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getDb } from "@/db";
 import { visits } from "@/db/schema";
+import { isBot } from "@/lib/bots";
 
 export const runtime = "nodejs";
 
@@ -14,13 +15,11 @@ const Body = z.object({
   referrerHost: opt(255),
 });
 
-// Crawlers and link-preview fetchers rarely run JS, but some do.
-const BOT_UA = /bot|crawl|spider|slurp|preview|facebookexternalhit|embedly|headless|curl|wget|python/i;
-
 /** Records one browser session (see components/VisitTracker.tsx). Always 204. */
 export async function POST(req: Request) {
   const done = new Response(null, { status: 204 });
-  if (BOT_UA.test(req.headers.get("user-agent") ?? "")) return done;
+  // Crawlers and link-preview fetchers rarely run JS, but some do.
+  if (isBot(req.headers.get("user-agent"))) return done;
 
   let body;
   try {
