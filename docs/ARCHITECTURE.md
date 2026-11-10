@@ -56,23 +56,23 @@ scripts/
 This is the single most important design rule. **The answer is never sent to the browser until the player solves or exhausts all six crops.**
 
 - [app/api/puzzle/today/route.ts](../app/api/puzzle/today/route.ts) returns only the puzzle number, `maxCrops`, and the **crop-0 image URL**. No brand, model, reference, or future crop.
-- Each guess POSTs `{cropIndex, brand, model}` to [app/api/guess/route.ts](../app/api/guess/route.ts), which loads today's answer **server-side**, compares, and returns only `{brandCorrect, modelCorrect, solved}` plus — on a miss — the **next** crop URL, or — on solve/exhaust — the full reveal.
-- Crop images are gated by an **HMAC token**: [lib/sign.ts](../lib/sign.ts) signs `${date}:${cropIndex}` with `GUESS_SECRET`. [app/api/crop/[date]/[index]/route.ts](../app/api/crop/%5Bdate%5D/%5Bindex%5D/route.ts) refuses any crop without a valid token. The client gets the crop-0 token from `puzzle/today` and a token for the **next** crop only when it earns one from `/api/guess`. So you cannot enumerate future crops of today's watch.
-- The autocomplete index ([app/api/catalog/route.ts](../app/api/catalog/route.ts)) returns the **entire** catalog's brands/models. Returning everything leaks nothing about *today's* answer, and lets Fuse.js run locally with zero per-keystroke server calls.
+- Each action POSTs `{date, cropIndex, token, kind, brand, model}` to [app/api/guess/route.ts](../app/api/guess/route.ts), which rejects a stale `date` (409) and any crop the client holds no token for (403), loads today's answer **server-side**, compares, and returns only `{brandCorrect, modelCorrect, solved}` (plus the canonical brand once it's guessed) and — on a miss — the **next** crop URL, or — on solve/exhaust — the full reveal. A right brand never comes back with the reveal attached, even on the last crop.
+- Crop images are gated by an **HMAC token**: [lib/sign.ts](../lib/sign.ts) signs `${date}:${cropIndex}` with `GUESS_SECRET`. [app/api/crop/[date]/[index]/route.ts](../app/api/crop/%5Bdate%5D/%5Bindex%5D/route.ts) refuses any crop without a valid token. The client gets the crop-0 token from `puzzle/today` and a token for the **next** crop only when it earns one from `/api/guess`. Because `/api/guess` also demands the token of the crop being acted on, crops unlock strictly one step at a time.
+- The autocomplete index ([app/api/catalog/route.ts](../app/api/catalog/route.ts)) is a broad reference vocabulary ([lib/reference-catalog.ts](../lib/reference-catalog.ts)) merged with the puzzle catalog. It must stay much wider than the puzzle catalog: built from puzzle watches alone, knowing the brand left exactly one model to pick. Fuse.js runs on it locally with zero per-keystroke server calls.
 
-> **Known limitation (acceptable for MVP):** a determined user can POST `final:true` to force the reveal early — but that only spoils their *own* game. There's no per-user server state without accounts. See [RISKS.md](RISKS.md#security--abuse).
+> **Known limitation (acceptable for MVP):** a determined user can POST `kind: "giveUp"` to see the answer at any crop, and a browser with cleared storage restarts at crop 1 — both only spoil their *own* game. There's no per-user server state without accounts. See [RISKS.md](RISKS.md#security--abuse).
 
 ## Request flow: one round
 
 1. `GET /api/puzzle/today` → `{puzzleNumber, maxCrops, firstCropUrl}`.
 2. Client renders crop 0 (fetched with its token).
-3. Player types a **brand** → `POST /api/guess {cropIndex:0, brand}`.
+3. Player types a **brand** (or a full "Brand Model") → `POST /api/guess {date, cropIndex:0, token, brand}`.
    - Correct → client unlocks the **model** input (stays on same crop).
    - Wrong → server returns the next crop; client zooms out.
-4. Player types a **model** → `POST /api/guess {cropIndex, brand, model}`.
+4. Player types a **model** → `POST /api/guess {date, cropIndex, token, brand, model}` (a leading brand in the model box is ignored).
    - Solved → server returns the **reveal** (brand/model/specs/full image/affiliate link).
    - Brand-right/model-wrong → client grants one **free retry** (the "partial grace"), then advances.
-5. On solve or exhaust, [components/Game.tsx](../components/Game.tsx) renders the reveal, updates streak/stats in `localStorage`, and builds the spoiler-free share string ([lib/share.ts](../lib/share.ts)).
+5. On solve or exhaust, [components/Game.tsx](../components/Game.tsx) renders the reveal, updates streak/stats in `localStorage` (it also saves the day's game state after every move, so a reload resumes rather than restarts), and builds the spoiler-free share string ([lib/share.ts](../lib/share.ts)).
 
 The full state machine (brand/model stages, partial grace, skip, give-up) lives in `submit()` / `skip()` / `giveUp()` in [components/Game.tsx](../components/Game.tsx).
 
