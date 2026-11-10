@@ -121,11 +121,37 @@ export const waitlist = pgTable(
   {
     id: serial("id").primaryKey(),
     email: text("email").notNull(),
-    source: text("source"), // landing | reveal | ...
+    source: text("source"), // which form: landing | landing-live | ...
+    // First-touch attribution: where this person came from (lib/attribution.ts).
+    utmSource: text("utm_source"),
+    utmMedium: text("utm_medium"),
+    utmCampaign: text("utm_campaign"),
+    referrerHost: text("referrer_host"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => ({
     emailUnique: uniqueIndex("waitlist_email_unique").on(t.email),
+  }),
+);
+
+/**
+ * One row per browser session that loaded the site: the denominator for the
+ * waitlist conversion rate, by source. Deliberately holds no personal data
+ * (no IP, no user agent, only the referring host), so it needs no consent.
+ */
+export const visits = pgTable(
+  "visits",
+  {
+    id: serial("id").primaryKey(),
+    path: text("path").notNull(),
+    utmSource: text("utm_source"),
+    utmMedium: text("utm_medium"),
+    utmCampaign: text("utm_campaign"),
+    referrerHost: text("referrer_host"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    createdIdx: index("visits_created_idx").on(t.createdAt),
   }),
 );
 

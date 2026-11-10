@@ -25,6 +25,12 @@ export default function Play() {
   return (
     <main className="mx-auto flex min-h-screen flex-col px-6 py-10">
       <Game />
+      <footer className="mx-auto mt-10 text-xs text-[var(--muted)]">
+        Not affiliated with any watch brand. ·{" "}
+        <Link href="/privacy" className="underline hover:text-[var(--ink)]">
+          Privacy
+        </Link>
+      </footer>
     </main>
   );
 }

@@ -11,6 +11,13 @@ import { MAX_CROPS } from "./daily";
  * gating in lib/sign.ts stays exactly the same.
  */
 
+/** Cheap deterministic string hash -> seed, so all crops of one day match. */
+export function seedFrom(key: string): number {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return h;
+}
+
 const ZOOM = [3.0, 2.2, 1.6, 1.25, 1.05, 1.0];
 const BLUR = [5, 3.5, 2, 1, 0.4, 0];
 

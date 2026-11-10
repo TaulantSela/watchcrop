@@ -1,15 +1,8 @@
 import { NextResponse } from "next/server";
-import { placeholderCropSvg } from "@/lib/cropImage";
+import { placeholderCropSvg, seedFrom } from "@/lib/cropImage";
 import { verifyCrop } from "@/lib/sign";
 
 export const runtime = "nodejs";
-
-/** Cheap deterministic string hash -> seed, so all crops of one day match. */
-function seedFrom(date: string): number {
-  let h = 0;
-  for (let i = 0; i < date.length; i++) h = (h * 31 + date.charCodeAt(i)) >>> 0;
-  return h;
-}
 
 export async function GET(
   req: Request,
