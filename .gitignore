@@ -10,4 +10,3 @@ build
 *.tsbuildinfo
 next-env.d.ts
 /masters
-/drizzle/meta

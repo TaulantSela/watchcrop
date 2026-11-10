@@ -33,7 +33,7 @@ In-depth guides live in [docs/](docs/):
 cp .env.example .env        # fill in DATABASE_URL, GUESS_SECRET, ADMIN_TOKEN
 npm install
 npm run db:push             # create tables in your Neon db
-npm run seed                # demo catalog + a week of scheduled puzzles
+npm run seed                # demo catalog + a week of scheduled puzzles (refuses a non-empty db; --force wipes it)
 npm run dev
 ```
 
@@ -82,11 +82,28 @@ The demo art (`lib/cropImage.ts`) is generated SVG — zero real photos, zero ri
 
 ## Deploy (Vercel)
 
+Production **requires** a real database: with no `DATABASE_URL` the app refuses to start its in-memory demo db on `VERCEL_ENV=production` (it would silently drop every waitlist signup on each cold start). Preview deployments fall back to the self-seeding PGlite demo, so PR previews are playable without touching prod data.
+
 ```bash
 vercel link
-vercel env add DATABASE_URL GUESS_SECRET ADMIN_TOKEN NEXT_PUBLIC_SITE_NAME NEXT_PUBLIC_GAME_LIVE
+
+# Production: a real Neon database (sets DATABASE_URL on production only) + secrets.
+vercel integration add neon --name watchcrop -e production --no-env-pull
+vercel env add GUESS_SECRET -e production --value "$(openssl rand -hex 32)"
+vercel env add ADMIN_TOKEN -e production --value "$(openssl rand -hex 32)"
+vercel env add NEXT_PUBLIC_SITE_NAME -e production --value WatchCrop
+vercel env add NEXT_PUBLIC_GAME_LIVE -e production --value false
+vercel env run -e production -- npm run db:migrate    # create the tables in Neon
+
+# Previews: no DATABASE_URL (PGlite demo), their own secrets, game switched on for review.
+vercel env add GUESS_SECRET -e preview --yes --value "$(openssl rand -hex 32)"
+vercel env add ADMIN_TOKEN -e preview --yes --value "$(openssl rand -hex 32)"
+vercel env add NEXT_PUBLIC_GAME_LIVE -e preview --yes --value true
+
 vercel --prod
 ```
+
+Don't pull the production `DATABASE_URL` into `.env.local`: local dev (and the destructive `npm run seed`) would then run against prod.
 
 ## Known TODO / fast-follows
 

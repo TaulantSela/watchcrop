@@ -89,7 +89,7 @@ See [db/schema.ts](../db/schema.ts). Six tables:
 
 ## Daily selection
 
-No cron is needed to *pick* the puzzle. [lib/daily.ts](../lib/daily.ts) computes `todayKey()` (a `YYYY-MM-DD` string with a configurable `RESET_OFFSET_HOURS`, default −5 so the rollover lands on a US/EU morning), and [lib/game.ts](../lib/game.ts) simply queries `puzzles where puzzleDate = todayKey()`. A cron job is only useful later for side-effects (snapshot stats, push notifications, cache warming).
+No cron is needed to *pick* the puzzle. [lib/daily.ts](../lib/daily.ts) computes `todayKey()` (a `YYYY-MM-DD` string with a configurable `RESET_OFFSET_HOURS`, default −5, which rolls over at 05:00 UTC: midnight US Eastern, breakfast in Europe), and [lib/game.ts](../lib/game.ts) simply queries `puzzles where puzzleDate = todayKey()`. A cron job is only useful later for side-effects (snapshot stats, push notifications, cache warming).
 
 ## Dual database (`getDb()`)
 
