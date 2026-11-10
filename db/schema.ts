@@ -74,6 +74,9 @@ export const aliases = pgTable(
     kind: text("kind").notNull(), // brand | model
     alias: text("alias").notNull(), // normalized form
     canonical: text("canonical").notNull(), // normalized canonical form
+    // Model aliases only: the normalized brand they belong to, so "gmt" can
+    // mean a different model for Rolex than for Grand Seiko. Null = any brand.
+    brand: text("brand"),
   },
   (t) => ({
     aliasIdx: index("aliases_alias_idx").on(t.alias),
@@ -81,16 +84,25 @@ export const aliases = pgTable(
 );
 
 /** Anonymous guess log for difficulty tuning + the "X solved today" counter. */
-export const guessesLog = pgTable("guesses_log", {
-  id: serial("id").primaryKey(),
-  puzzleDate: date("puzzle_date").notNull(),
-  cropIndex: integer("crop_index").notNull(),
-  guessBrand: text("guess_brand"),
-  guessModel: text("guess_model"),
-  brandCorrect: boolean("brand_correct").notNull().default(false),
-  solved: boolean("solved").notNull().default(false),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const guessesLog = pgTable(
+  "guesses_log",
+  {
+    id: serial("id").primaryKey(),
+    puzzleDate: date("puzzle_date").notNull(),
+    cropIndex: integer("crop_index").notNull(),
+    guessBrand: text("guess_brand"),
+    guessModel: text("guess_model"),
+    brandCorrect: boolean("brand_correct").notNull().default(false),
+    solved: boolean("solved").notNull().default(false),
+    // Random per-device id (no account, no PII) so "solved today" counts
+    // players rather than requests.
+    playerId: text("player_id"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    solvedIdx: index("guesses_log_date_solved_idx").on(t.puzzleDate, t.solved),
+  }),
+);
 
 /** The de-risk asset: the waitlist email list. */
 export const waitlist = pgTable(

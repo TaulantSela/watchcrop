@@ -1,16 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import Fuse from "fuse.js";
-import { MAX_CROPS } from "@/lib/daily";
+import { MAX_CROPS, secondsUntilNext, todayKey } from "@/lib/daily";
+import { normalize } from "@/lib/normalize";
 import { buildShareString } from "@/lib/share";
 import { medalForCrop } from "@/lib/scoring";
+import { EMPTY_STATS, liveStreak, parseStats, recordResult, type Stats } from "@/lib/stats";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_NAME ?? "WatchCrop";
 
 type Meta =
   | { available: true; date: string; puzzleNumber: number; maxCrops: number; firstCropUrl: string }
   | { available: false; date: string };
+
+type Catalog = { brands: string[]; models: { brand: string; model: string }[] };
 
 type Reveal = {
   brand: string;
@@ -23,236 +27,310 @@ type Reveal = {
   shopUrl: string | null;
   marketUrl: string;
   solvedToday: number;
-  secondsUntilNext: number;
 };
 
 type GuessResponse = {
   brandCorrect: boolean;
   modelCorrect: boolean;
   solved: boolean;
+  brand?: string; // canonical brand, sent once guessed
   nextCrop?: { index: number; url: string } | null;
   reveal?: Reveal;
 };
 
-type Stats = {
-  lastDate: string;
-  streak: number;
-  maxStreak: number;
-  played: number;
-  wins: number;
-  lastSolvedCrop: number | null; // null = lost
+/** Everything about today's game that must survive a reload. */
+type GameState = {
+  cropIndex: number;
+  cropUrls: Record<number, string>;
+  brandSolved: boolean;
+  knownBrand: string;
+  usedHint: boolean;
+  usedPartialGrace: boolean;
+  finished: boolean;
+  reveal: Reveal | null;
+  solvedCropIndex: number | null;
 };
 
 const STATS_KEY = "watchcrop:stats";
+const PLAYER_KEY = "watchcrop:player";
+const GAME_PREFIX = "watchcrop:game:";
 
-function loadStats(): Stats {
-  if (typeof window === "undefined")
-    return { lastDate: "", streak: 0, maxStreak: 0, played: 0, wins: 0, lastSolvedCrop: null };
+function newGame(firstCropUrl = ""): GameState {
+  return {
+    cropIndex: 0,
+    cropUrls: firstCropUrl ? { 0: firstCropUrl } : {},
+    brandSolved: false,
+    knownBrand: "",
+    usedHint: false,
+    usedPartialGrace: false,
+    finished: false,
+    reveal: null,
+    solvedCropIndex: null,
+  };
+}
+
+// localStorage can throw (private mode, blocked storage): never let it break play.
+function storageGet(key: string): string | null {
   try {
-    return JSON.parse(localStorage.getItem(STATS_KEY) || "") as Stats;
+    return localStorage.getItem(key);
   } catch {
-    return { lastDate: "", streak: 0, maxStreak: 0, played: 0, wins: 0, lastSolvedCrop: null };
+    return null;
   }
+}
+function storageSet(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+}
+
+function loadGame(date: string): GameState | null {
+  try {
+    const raw = storageGet(GAME_PREFIX + date);
+    return raw ? { ...newGame(), ...JSON.parse(raw) } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Keeps only today's saved game so storage doesn't grow by one entry a day. */
+function pruneOldGames(date: string) {
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith(GAME_PREFIX) && key !== GAME_PREFIX + date) localStorage.removeItem(key);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/** A random per-device id (no account, no PII) so "solved today" counts players. */
+function getPlayerId(): string | undefined {
+  let id = storageGet(PLAYER_KEY);
+  if (!id) {
+    try {
+      id = crypto.randomUUID();
+    } catch {
+      return undefined; // insecure context: just don't send one
+    }
+    storageSet(PLAYER_KEY, id);
+  }
+  return id;
+}
+
+function tokenOf(cropUrl: string | undefined): string {
+  return cropUrl ? (new URL(cropUrl, "http://local").searchParams.get("t") ?? "") : "";
 }
 
 export function Game() {
   const [meta, setMeta] = useState<Meta | null>(null);
-  const [catalog, setCatalog] = useState<{ brands: string[]; models: string[] }>({
-    brands: [],
-    models: [],
-  });
+  const [loadError, setLoadError] = useState(false);
+  const [catalog, setCatalog] = useState<Catalog>({ brands: [], models: [] });
+  const [game, setGame] = useState<GameState>(newGame);
+  const [stats, setStats] = useState<Stats>(EMPTY_STATS);
 
-  const [cropIndex, setCropIndex] = useState(0);
-  const [cropUrls, setCropUrls] = useState<Record<number, string>>({});
-  const [brandSolved, setBrandSolved] = useState(false);
-  const [knownBrand, setKnownBrand] = useState("");
   const [input, setInput] = useState("");
-  const [usedHint, setUsedHint] = useState(false);
-  const [usedPartialGrace, setUsedPartialGrace] = useState(false);
-  const [note, setNote] = useState<string>("");
+  const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [rolledOver, setRolledOver] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
-  const [finished, setFinished] = useState(false);
-  const [reveal, setReveal] = useState<Reveal | null>(null);
-  const [solvedCropIndex, setSolvedCropIndex] = useState<number | null>(null);
-  const [stats, setStats] = useState<Stats>(loadStats);
-  const [copied, setCopied] = useState(false);
-  const statsWritten = useRef(false);
+  // --- bootstrap: today's puzzle, the autocomplete index, and any saved game ---
+  const load = useCallback(async () => {
+    setLoadError(false);
+    try {
+      const [mRes, cRes] = await Promise.all([fetch("/api/puzzle/today"), fetch("/api/catalog")]);
+      if (!mRes.ok || !cRes.ok) throw new Error("load failed");
+      const m: Meta = await mRes.json();
+      const c: Catalog = await cRes.json();
+      const s = parseStats(storageGet(STATS_KEY));
 
-  // --- bootstrap ---
-  useEffect(() => {
-    (async () => {
-      const [m, c] = await Promise.all([
-        fetch("/api/puzzle/today").then((r) => r.json()),
-        fetch("/api/catalog").then((r) => r.json()),
-      ]);
-      setMeta(m);
+      setStats(s);
       setCatalog(c);
-      if (m.available) setCropUrls({ 0: m.firstCropUrl });
-
-      // Already played today? Show the post-game panel instead of replaying.
-      const s = loadStats();
-      if (m.available && s.lastDate === m.date) {
-        setFinished(true);
-        setSolvedCropIndex(s.lastSolvedCrop);
-        statsWritten.current = true;
+      if (m.available) {
+        pruneOldGames(m.date);
+        const saved = loadGame(m.date);
+        if (saved) {
+          setGame(saved); // resume mid-game, or show the finished board + reveal
+        } else if (s.lastDate === m.date) {
+          // Finished today on a build that didn't save the board.
+          setGame({ ...newGame(m.firstCropUrl), finished: true, solvedCropIndex: s.lastSolvedCrop });
+        } else {
+          setGame(newGame(m.firstCropUrl));
+        }
       }
-    })();
+      setMeta(m);
+    } catch {
+      setLoadError(true);
+    }
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Persist every change, so a reload resumes instead of restarting at crop 1.
+  useEffect(() => {
+    if (meta?.available) storageSet(GAME_PREFIX + meta.date, JSON.stringify(game));
+  }, [game, meta]);
 
   const date = meta?.available ? meta.date : "";
   const puzzleNumber = meta?.available ? meta.puzzleNumber : 0;
   const maxCrops = meta?.available ? meta.maxCrops : MAX_CROPS;
+  const { cropIndex, brandSolved, knownBrand, usedPartialGrace, finished, reveal, solvedCropIndex } =
+    game;
   const isLastCrop = cropIndex === maxCrops - 1;
+  const streak = liveStreak(stats, date);
 
   // --- autocomplete ---
   const brandFuse = useMemo(() => new Fuse(catalog.brands, { threshold: 0.4 }), [catalog.brands]);
   const modelOptions = useMemo(() => {
     if (!knownBrand) return [];
-    const prefix = `${knownBrand.toLowerCase()} `;
-    return catalog.models
-      .filter((m) => m.toLowerCase().startsWith(prefix))
-      .map((m) => m.slice(knownBrand.length + 1));
+    const b = normalize(knownBrand);
+    return catalog.models.filter((m) => normalize(m.brand) === b).map((m) => m.model);
   }, [catalog.models, knownBrand]);
   const modelFuse = useMemo(() => new Fuse(modelOptions, { threshold: 0.4 }), [modelOptions]);
 
-  const suggestions = useMemo(() => {
-    if (input.trim().length < 1) return [];
-    const fuse = brandSolved ? modelFuse : brandFuse;
-    return fuse.search(input).slice(0, 6).map((r) => r.item);
-  }, [input, brandSolved, brandFuse, modelFuse]);
+  // --- result bookkeeping ---
+  function finish(rev: Reveal | null, solvedIdx: number | null) {
+    setGame((g) => ({ ...g, finished: true, reveal: rev, solvedCropIndex: solvedIdx }));
+    const next = recordResult(stats, date, solvedIdx);
+    if (next !== stats) {
+      setStats(next);
+      storageSet(STATS_KEY, JSON.stringify(next));
+    }
+  }
 
-  // --- helpers ---
-  const writeStats = useCallback(
-    (solvedIdx: number | null) => {
-      if (statsWritten.current) return;
-      statsWritten.current = true;
-      setStats((prev) => {
-        const won = solvedIdx !== null;
-        const next: Stats = {
-          lastDate: date,
-          streak: won ? prev.streak + 1 : 0,
-          maxStreak: Math.max(prev.maxStreak, won ? prev.streak + 1 : prev.streak),
-          played: prev.played + 1,
-          wins: prev.wins + (won ? 1 : 0),
-          lastSolvedCrop: solvedIdx,
-        };
-        try {
-          localStorage.setItem(STATS_KEY, JSON.stringify(next));
-        } catch {
-          /* ignore */
-        }
-        return next;
-      });
-    },
-    [date],
-  );
-
-  const finish = useCallback(
-    (rev: Reveal | null, solvedIdx: number | null) => {
-      setReveal(rev);
-      setSolvedCropIndex(solvedIdx);
-      setFinished(true);
-      writeStats(solvedIdx);
-    },
-    [writeStats],
-  );
-
-  const advance = useCallback((next: { index: number; url: string }) => {
-    setCropUrls((prev) => ({ ...prev, [next.index]: next.url }));
-    setCropIndex(next.index);
+  function advance(next: { index: number; url: string }) {
+    setGame((g) => ({
+      ...g,
+      cropIndex: next.index,
+      cropUrls: { ...g.cropUrls, [next.index]: next.url },
+    }));
     setInput("");
-    setNote("");
-  }, []);
+  }
 
+  /** POSTs one action for the current crop. Null = the day rolled over. */
   async function postGuess(payload: {
-    brand: string;
-    model: string;
-    final: boolean;
-  }): Promise<GuessResponse> {
+    kind?: "guess" | "skip" | "giveUp";
+    brand?: string;
+    model?: string;
+    final?: boolean;
+  }): Promise<GuessResponse | null> {
     const res = await fetch("/api/guess", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ cropIndex, ...payload }),
+      body: JSON.stringify({
+        date,
+        cropIndex,
+        token: tokenOf(game.cropUrls[cropIndex]),
+        playerId: getPlayerId(),
+        ...payload,
+      }),
     });
+    if (res.status === 409) {
+      setRolledOver(true);
+      return null;
+    }
+    if (!res.ok) throw new Error(`guess failed: ${res.status}`);
     return res.json();
   }
 
-  async function submit() {
-    if (busy || finished || !meta?.available) return;
-    const value = input.trim();
-    if (!value) return;
+  async function run(action: () => Promise<void>) {
+    if (busy || finished || rolledOver || !meta?.available) return;
     setBusy(true);
-    setNote("");
     try {
+      await action();
+    } catch {
+      setNote("Couldn't reach the server. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const submit = () =>
+    run(async () => {
+      const value = input.trim();
+      if (!value) return;
+      setNote("");
+
       if (!brandSolved) {
-        const res = await postGuess({ brand: value, model: "", final: isLastCrop });
-        if (res.brandCorrect) {
-          setBrandSolved(true);
-          setKnownBrand(value);
+        // The brand box also accepts a full "Brand Model" guess.
+        const res = await postGuess({ brand: value });
+        if (!res) return;
+        if (res.solved) {
+          finish(res.reveal ?? null, cropIndex);
+        } else if (res.brandCorrect) {
+          const brand = res.brand ?? value;
+          setGame((g) => ({ ...g, brandSolved: true, knownBrand: brand }));
           setInput("");
-          setNote(`✓ ${value} — now the model.`);
+          setNote(`✓ ${brand}. Now the model.`);
         } else if (res.reveal) {
           finish(res.reveal, null); // wrong on the last crop
         } else if (res.nextCrop) {
+          advance(res.nextCrop);
           setNote("Not it. Zooming out…");
-          advance(res.nextCrop);
         }
-      } else {
-        const willFinalize = isLastCrop && usedPartialGrace;
-        const res = await postGuess({ brand: knownBrand, model: value, final: willFinalize });
-        if (res.solved) {
-          finish(res.reveal ?? null, cropIndex);
-        } else if (!usedPartialGrace) {
-          setUsedPartialGrace(true);
-          setInput("");
-          setNote("Brand's right — one free retry on the model.");
-        } else if (isLastCrop && res.reveal) {
-          finish(res.reveal, null);
-        } else if (res.nextCrop) {
-          setNote("Not quite. Zooming out…");
-          advance(res.nextCrop);
-        }
+        return;
       }
-    } finally {
-      setBusy(false);
-    }
-  }
 
-  async function skip() {
-    if (busy || finished || !meta?.available) return;
-    setBusy(true);
-    setUsedHint(true);
-    try {
       const res = await postGuess({
-        brand: brandSolved ? knownBrand : "__skip__",
-        model: "",
-        final: isLastCrop,
+        brand: knownBrand,
+        model: value,
+        final: isLastCrop && usedPartialGrace,
       });
+      if (!res) return;
+      if (res.solved) {
+        finish(res.reveal ?? null, cropIndex);
+      } else if (res.reveal) {
+        finish(res.reveal, null); // out of retries on the last crop
+      } else if (!usedPartialGrace) {
+        setGame((g) => ({ ...g, usedPartialGrace: true }));
+        setInput("");
+        setNote("Brand's right. One free retry on the model.");
+      } else if (res.nextCrop) {
+        advance(res.nextCrop);
+        setNote("Not quite. Zooming out…");
+      }
+    });
+
+  const skip = () =>
+    run(async () => {
+      setGame((g) => ({ ...g, usedHint: true }));
+      const res = await postGuess({ kind: "skip" });
+      if (!res) return;
+      setNote("");
       if (res.reveal) finish(res.reveal, null);
       else if (res.nextCrop) advance(res.nextCrop);
-    } finally {
-      setBusy(false);
-    }
-  }
+    });
 
-  async function giveUp() {
-    if (busy || finished || !meta?.available) return;
-    setBusy(true);
+  const giveUp = () =>
+    run(async () => {
+      const res = await postGuess({ kind: "giveUp" });
+      if (res) finish(res.reveal ?? null, null);
+    });
+
+  async function copyShare(text: string) {
     try {
-      const res = await fetch("/api/guess", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ cropIndex, brand: "", model: "", giveUp: true }),
-      });
-      const data: GuessResponse = await res.json();
-      finish(data.reveal ?? null, null);
-    } finally {
-      setBusy(false);
+      await navigator.clipboard.writeText(text);
+      setCopyState("copied");
+    } catch {
+      setCopyState("failed"); // blocked clipboard: the text is selectable above
     }
+    setTimeout(() => setCopyState("idle"), 2500);
   }
 
   // --- render ---
+  if (loadError)
+    return (
+      <Centered>
+        Couldn&apos;t load today&apos;s watch.{" "}
+        <button onClick={load} className="text-[var(--gold)] underline">
+          Try again
+        </button>
+      </Centered>
+    );
   if (!meta) return <Centered>Loading today&apos;s watch…</Centered>;
   if (!meta.available)
     return (
@@ -267,9 +345,9 @@ export function Game() {
     puzzleNumber,
     solvedCropIndex,
     medal,
-    usedHint,
+    usedHint: game.usedHint,
     gotReference: false,
-    streak: stats.streak,
+    streak,
     siteName: SITE,
   });
 
@@ -281,51 +359,43 @@ export function Game() {
         </span>
         <span>
           crop {Math.min(cropIndex + 1, maxCrops)} / {maxCrops}
-          {stats.streak > 0 && <> · 🔥 {stats.streak}</>}
+          {streak > 0 && <> · 🔥 {streak}</>}
         </span>
       </div>
 
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={finished && reveal ? reveal.fullImageUrl : cropUrls[cropIndex]}
-        alt="watch crop"
+        src={finished && reveal ? reveal.fullImageUrl : game.cropUrls[cropIndex]}
+        alt={finished && reveal ? `${reveal.brand} ${reveal.model}` : `Watch detail, crop ${cropIndex + 1} of ${maxCrops}`}
         className="aspect-square w-full rounded-2xl border border-white/10 bg-black"
       />
 
-      {!finished ? (
+      {rolledOver ? (
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-[var(--panel)] p-4 text-center">
+          <p>A new watch just dropped, so this one has closed.</p>
+          <button
+            onClick={() => location.reload()}
+            className="rounded-lg bg-[var(--gold)] px-5 py-2.5 font-semibold text-black"
+          >
+            Play the new one →
+          </button>
+        </div>
+      ) : !finished ? (
         <>
-          <div className="relative">
-            <div className="flex gap-2">
-              {brandSolved && (
-                <span className="flex items-center rounded-lg border border-emerald-700/60 bg-emerald-950/40 px-3 text-sm text-emerald-300">
-                  {knownBrand} ✓
-                </span>
-              )}
-              <input
-                autoFocus
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && submit()}
-                placeholder={brandSolved ? "Model (e.g. Submariner)" : "Brand (e.g. Omega)"}
-                className="w-full rounded-lg border border-white/10 bg-[var(--panel)] px-4 py-3 outline-none focus:border-[var(--gold)]"
-              />
-            </div>
-            {suggestions.length > 0 && (
-              <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-white/10 bg-[var(--panel)]">
-                {suggestions.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setInput(s)}
-                    className="block w-full px-4 py-2 text-left hover:bg-white/5"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <GuessInput
+            key={brandSolved ? "model" : "brand"}
+            value={input}
+            onChange={setInput}
+            onSubmit={submit}
+            fuse={brandSolved ? modelFuse : brandFuse}
+            label={brandSolved ? "Model" : "Brand"}
+            placeholder={brandSolved ? "Model (e.g. Submariner)" : "Brand (e.g. Omega)"}
+            prefix={brandSolved ? knownBrand : null}
+          />
 
-          {note && <p className="text-sm text-[var(--muted)]">{note}</p>}
+          <p aria-live="polite" className="min-h-5 text-sm text-[var(--muted)]">
+            {note}
+          </p>
 
           <div className="flex gap-2">
             <button
@@ -335,14 +405,16 @@ export function Game() {
             >
               Guess
             </button>
-            <button
-              onClick={skip}
-              disabled={busy}
-              className="rounded-lg border border-white/10 px-4 py-3 text-sm text-[var(--muted)] hover:text-[var(--ink)]"
-              title="Zoom out without a guess (counts as a hint)"
-            >
-              Skip
-            </button>
+            {!isLastCrop && (
+              <button
+                onClick={skip}
+                disabled={busy}
+                className="rounded-lg border border-white/10 px-4 py-3 text-sm text-[var(--muted)] hover:text-[var(--ink)]"
+                title="Zoom out without a guess (counts as a hint)"
+              >
+                Skip
+              </button>
+            )}
             <button
               onClick={giveUp}
               disabled={busy}
@@ -354,35 +426,158 @@ export function Game() {
         </>
       ) : (
         <Result
+          date={date}
           reveal={reveal}
           solvedCropIndex={solvedCropIndex}
           stats={stats}
+          streak={streak}
           shareText={shareText}
-          copied={copied}
-          onCopy={async () => {
-            await navigator.clipboard.writeText(shareText);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-          }}
+          copyState={copyState}
+          onCopy={() => copyShare(shareText)}
         />
       )}
     </div>
   );
 }
 
+/**
+ * The guess box with an accessible autocomplete: arrow keys move through
+ * suggestions, Enter picks the highlighted one (or submits), Escape and
+ * picking close the list so it never sits on top of the buttons.
+ */
+function GuessInput({
+  value,
+  onChange,
+  onSubmit,
+  fuse,
+  label,
+  placeholder,
+  prefix,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: () => void;
+  fuse: Fuse<string>;
+  label: string;
+  placeholder: string;
+  prefix: string | null;
+}) {
+  const listId = useId();
+  const [open, setOpen] = useState(false);
+  const [highlight, setHighlight] = useState(-1);
+
+  const suggestions = useMemo(() => {
+    const q = value.trim();
+    if (!q) return [];
+    const items = fuse.search(q).slice(0, 6).map((r) => r.item);
+    // Nothing left to suggest once the input already IS the only match.
+    if (items.length === 1 && items[0].toLowerCase() === q.toLowerCase()) return [];
+    return items;
+  }, [value, fuse]);
+  const showList = open && suggestions.length > 0;
+
+  function pick(s: string) {
+    onChange(s);
+    setOpen(false);
+    setHighlight(-1);
+  }
+
+  return (
+    <div className="relative">
+      <div className="flex gap-2">
+        {prefix && (
+          <span className="flex items-center rounded-lg border border-emerald-700/60 bg-emerald-950/40 px-3 text-sm text-emerald-300">
+            {prefix} ✓
+          </span>
+        )}
+        <input
+          autoFocus
+          role="combobox"
+          aria-label={label}
+          aria-expanded={showList}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={showList && highlight >= 0 ? `${listId}-${highlight}` : undefined}
+          autoComplete="off"
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setOpen(true);
+            setHighlight(-1);
+          }}
+          onBlur={() => setOpen(false)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setOpen(true);
+              setHighlight((h) => Math.min(h + 1, suggestions.length - 1));
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setHighlight((h) => Math.max(h - 1, -1));
+            } else if (e.key === "Escape") {
+              setOpen(false);
+              setHighlight(-1);
+            } else if (e.key === "Enter") {
+              e.preventDefault();
+              if (showList && highlight >= 0) {
+                pick(suggestions[highlight]);
+              } else {
+                setOpen(false);
+                onSubmit();
+              }
+            }
+          }}
+          placeholder={placeholder}
+          className="w-full rounded-lg border border-white/10 bg-[var(--panel)] px-4 py-3 outline-none focus:border-[var(--gold)]"
+        />
+      </div>
+      {showList && (
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label={`${label} suggestions`}
+          className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-white/10 bg-[var(--panel)]"
+        >
+          {suggestions.map((s, i) => (
+            <li
+              key={s}
+              id={`${listId}-${i}`}
+              role="option"
+              aria-selected={i === highlight}
+              // mousedown + preventDefault keeps focus in the input (no blur-close race)
+              onMouseDown={(e) => {
+                e.preventDefault();
+                pick(s);
+              }}
+              onMouseEnter={() => setHighlight(i)}
+              className={`cursor-pointer px-4 py-2 ${i === highlight ? "bg-white/10" : ""}`}
+            >
+              {s}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function Result({
+  date,
   reveal,
   solvedCropIndex,
   stats,
+  streak,
   shareText,
-  copied,
+  copyState,
   onCopy,
 }: {
+  date: string;
   reveal: Reveal | null;
   solvedCropIndex: number | null;
   stats: Stats;
+  streak: number;
   shareText: string;
-  copied: boolean;
+  copyState: "idle" | "copied" | "failed";
   onCopy: () => void;
 }) {
   const won = solvedCropIndex !== null;
@@ -435,7 +630,7 @@ function Result({
         <p className="text-[var(--muted)]">Come back tomorrow for a new watch.</p>
       )}
 
-      <pre className="whitespace-pre-wrap rounded-xl border border-white/10 bg-[var(--panel)] p-4 text-center text-lg leading-snug">
+      <pre className="whitespace-pre-wrap rounded-xl border border-white/10 bg-[var(--panel)] p-4 text-center text-lg leading-snug select-all">
         {shareText}
       </pre>
 
@@ -443,11 +638,15 @@ function Result({
         onClick={onCopy}
         className="rounded-lg bg-[var(--gold)] px-4 py-3 font-semibold text-black transition hover:brightness-110"
       >
-        {copied ? "Copied!" : "Share result"}
+        {copyState === "copied"
+          ? "Copied!"
+          : copyState === "failed"
+            ? "Copy blocked: select the text above"
+            : "Share result"}
       </button>
 
       <div className="grid grid-cols-3 gap-2 text-center text-sm">
-        <Stat label="Streak" value={stats.streak} />
+        <Stat label="Streak" value={streak} />
         <Stat label="Max" value={stats.maxStreak} />
         <Stat
           label="Win %"
@@ -455,7 +654,7 @@ function Result({
         />
       </div>
 
-      {reveal && <Countdown seconds={reveal.secondsUntilNext} solvedToday={reveal.solvedToday} />}
+      <Countdown date={date} solvedToday={reveal?.solvedToday ?? null} />
     </div>
   );
 }
@@ -469,18 +668,33 @@ function Stat({ label, value }: { label: string; value: number }) {
   );
 }
 
-function Countdown({ seconds, solvedToday }: { seconds: number; solvedToday: number }) {
-  const [s, setS] = useState(seconds);
+/** Ticks against the real clock, so a restored game shows the right time too. */
+function Countdown({ date, solvedToday }: { date: string; solvedToday: number | null }) {
+  const [now, setNow] = useState(() => new Date());
   useEffect(() => {
-    const t = setInterval(() => setS((x) => Math.max(0, x - 1)), 1000);
+    const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  if (todayKey(now) !== date) {
+    return (
+      <p className="text-center text-sm text-[var(--muted)]">
+        A new watch is out.{" "}
+        <button onClick={() => location.reload()} className="text-[var(--gold)] underline">
+          Play it →
+        </button>
+      </p>
+    );
+  }
+
+  const s = secondsUntilNext(now);
   const hh = String(Math.floor(s / 3600)).padStart(2, "0");
   const mm = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
   const ss = String(s % 60).padStart(2, "0");
   return (
     <p className="text-center text-sm text-[var(--muted)]">
-      {solvedToday.toLocaleString()} solved today · next watch in {hh}:{mm}:{ss}
+      {solvedToday !== null && <>{solvedToday.toLocaleString()} solved today · </>}
+      next watch in {hh}:{mm}:{ss}
     </p>
   );
 }
