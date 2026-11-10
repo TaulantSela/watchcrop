@@ -18,7 +18,7 @@ These cost ~$0 and gate everything. Don't build the photo library until they pas
 1. **Image-source gut check** — for ~90 target watches, confirm >70% can be self-shot or properly licensed. ([RISKS.md](RISKS.md#-fatal-risk-1--photo-copyright))
 2. **Incumbent autopsy** — check existing watch-guess games' traffic + count real daily share-grid pastes. Growing or stalled?
 3. **Manual daily** — run a hand-curated "guess the watch" post in r/Watches / WatchCrunch / WatchUSeek for ~2 weeks. Measure unique daily players + organic reshares.
-4. **Fake-door waitlist** — keep `NEXT_PUBLIC_GAME_LIVE=false`, ship the landing, watch signup rate + source.
+4. **Fake-door waitlist** — keep `NEXT_PUBLIC_GAME_LIVE=false`, ship the landing, tag posted links with `utm_source`, and read signup rate + source off the Demand panel in `/admin/crop`.
 5. **Affiliate EPC test** — apply to programs, run a few manual "answer → buy" posts through `/go/[ref]`, measure real EPC over 30–45 days.
 
 **Gate:** only proceed to Phase 1 if the manual daily + waitlist show a credible path past ~1k DAU.

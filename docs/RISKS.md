@@ -55,6 +55,9 @@ Demand for the *activity* (people play "guess the watch" by hand daily) is prove
 ### Wordle clone
 NYT actively DMCA's clones of Wordle's **name, exact 5×6 grid, and green/yellow colors**. Don't copy them. See [GAME-DESIGN.md](GAME-DESIGN.md#naming).
 
+### Privacy (GDPR / North Macedonia's LPDP)
+The waitlist collects emails from EU readers, so [/privacy](../app/privacy/page.tsx) states what is collected, why, who processes it (Vercel, Neon), retention, and how to ask for deletion. **Set `NEXT_PUBLIC_CONTACT_EMAIL`** (an address you actually read) before posting the landing anywhere; until then the page says the contact is coming soon. Visits are counted without IPs, device data or cookies, so no consent banner is needed. Update the page before adding any analytics, email provider or tracker. It's a plain-language notice, not legal advice.
+
 ### FTC
 Affiliate links require **clear disclosure**; sponsored puzzles require **"sponsored/ad" labeling**. The reveal screen already carries a small "may be affiliate links" line ([components/Game.tsx](../components/Game.tsx)) — have the exact copy reviewed before turning on money.
 

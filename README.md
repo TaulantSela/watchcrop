@@ -75,7 +75,7 @@ The demo art (`lib/cropImage.ts`) is generated SVG — zero real photos, zero ri
 1. **Image-source gut check.** For your first ~90 target watches, write down where each photo would actually come from. If >30% isn't "I'll shoot it" or "paid/verified CC-BY", stop — the pipeline is broken.
 2. **Incumbent autopsy.** Check the existing watch-guess games' traffic + count real daily share-grid pastes. Are they growing or stalled?
 3. **Manual daily.** Run a "guess the watch" post by hand in r/Watches / WatchCrunch / WatchUSeek for ~2 weeks. Measure unique daily players + organic reshares.
-4. **Fake-door waitlist.** This landing page. Watch the signup rate and where they come from.
+4. **Fake-door waitlist.** This landing page. Tag every link you post (`/?utm_source=reddit&utm_campaign=r-watches-0611`); the **Demand** panel at the top of `/admin/crop` shows visits, signups and conversion by source and by day, and exports the list as CSV. Visits are counted once per browser session with no personal data; signups go through a honeypot and a minimum-fill-time check so scripted junk doesn't inflate the number.
 5. **Affiliate EPC test.** Apply to programs, run a few manual "answer → buy" posts through `/go/[ref]`, and measure real EPC over 30–45 days. (Note: Chrono24 has **no** affiliate program — the reveal falls back to a non-monetized market link for those.)
 
 **Gate:** don't flip `NEXT_PUBLIC_GAME_LIVE=true` / build the photo library until the manual daily + waitlist show a credible path past ~1k DAU.
@@ -93,6 +93,7 @@ vercel env add GUESS_SECRET -e production --value "$(openssl rand -hex 32)"
 vercel env add ADMIN_TOKEN -e production --value "$(openssl rand -hex 32)"
 vercel env add NEXT_PUBLIC_SITE_NAME -e production --value WatchCrop
 vercel env add NEXT_PUBLIC_GAME_LIVE -e production --value false
+vercel env add NEXT_PUBLIC_CONTACT_EMAIL -e production --value you@your-address   # shown on /privacy
 vercel env run -e production -- npm run db:migrate    # create the tables in Neon
 
 # Previews: no DATABASE_URL (PGlite demo), their own secrets, game switched on for review.
