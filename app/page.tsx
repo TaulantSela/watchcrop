@@ -62,7 +62,10 @@ export default function Landing() {
 
       <footer className="mt-8 border-t border-white/10 pt-6 text-xs text-[var(--muted)]">
         {SITE} is an independent guessing game. Not affiliated with, endorsed by, or sponsored by
-        any watch brand. All brand names appear solely as puzzle answers.
+        any watch brand. All brand names appear solely as puzzle answers. ·{" "}
+        <Link href="/privacy" className="underline hover:text-[var(--ink)]">
+          Privacy
+        </Link>
       </footer>
     </main>
   );
