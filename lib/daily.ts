@@ -4,9 +4,10 @@ export const MAX_CROPS = 6;
 /**
  * The puzzle "day" key, as YYYY-MM-DD.
  *
- * NOTE: pure UTC midnight lands mid-afternoon for the US/EU watch audience.
- * `RESET_OFFSET_HOURS` shifts the rollover so the daily habit stacks onto a
- * morning. Default -5 ≈ US Eastern morning. Tune before launch; it's one line.
+ * `RESET_OFFSET_HOURS` shifts the rollover away from UTC midnight. The default
+ * -5 rolls the puzzle over at 05:00 UTC: midnight US Eastern (01:00 in summer)
+ * and 06:00 CET, so US players get it at midnight and Europe at breakfast.
+ * Tune before launch; it's one line. (It ignores DST.)
  */
 const RESET_OFFSET_HOURS = -5;
 

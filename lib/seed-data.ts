@@ -1,5 +1,6 @@
 import { aliases, puzzles, watches } from "../db/schema";
 import { normalize } from "./normalize";
+import { todayKey } from "./daily";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
 /** A DB handle that exposes the drizzle methods we use (pg OR pglite). */
@@ -68,8 +69,13 @@ export const CATALOG: SeedWatch[] = [
   },
 ];
 
-function dateForOffset(offsetDays: number): string {
-  const d = new Date();
+/**
+ * The puzzle day `offsetDays` after today, on the same shifted clock the game
+ * reads (todayKey). Plain UTC dates would leave "today" unscheduled for the
+ * RESET_OFFSET_HOURS window after UTC midnight.
+ */
+export function dateForOffset(offsetDays: number, now: Date = new Date()): string {
+  const d = new Date(`${todayKey(now)}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + offsetDays);
   return d.toISOString().slice(0, 10);
 }
