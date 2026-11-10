@@ -5,7 +5,7 @@ import Fuse from "fuse.js";
 import { MAX_CROPS, secondsUntilNext, todayKey } from "@/lib/daily";
 import { normalize } from "@/lib/normalize";
 import { buildShareString } from "@/lib/share";
-import { medalForCrop } from "@/lib/scoring";
+import { horologyScore, medalForCrop } from "@/lib/scoring";
 import { EMPTY_STATS, liveStreak, parseStats, recordResult, type Stats } from "@/lib/stats";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_NAME ?? "WatchCrop";
@@ -27,6 +27,7 @@ type Reveal = {
   shopUrl: string | null;
   marketUrl: string;
   solvedToday: number;
+  difficultyWeight?: number; // absent in games saved before scores existed
 };
 
 type GuessResponse = {
@@ -311,7 +312,17 @@ export function Game() {
       if (res) finish(res.reveal ?? null, null);
     });
 
-  async function copyShare(text: string) {
+  async function shareResult(text: string) {
+    // Phones get the native share sheet; everything else copies to the clipboard.
+    const coarse = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+    if (coarse && typeof navigator.share === "function") {
+      try {
+        await navigator.share({ text });
+        return;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return; // sheet closed
+      }
+    }
     try {
       await navigator.clipboard.writeText(text);
       setCopyState("copied");
@@ -341,6 +352,17 @@ export function Game() {
     );
 
   const medal = solvedCropIndex !== null ? medalForCrop(solvedCropIndex, true) : "none";
+  const score =
+    reveal?.difficultyWeight !== undefined && solvedCropIndex !== null
+      ? horologyScore({
+          cropIndex: solvedCropIndex,
+          solved: true,
+          difficultyWeight: reveal.difficultyWeight,
+          gotReference: false,
+          usedHint: game.usedHint,
+          partialRetries: usedPartialGrace ? 1 : 0,
+        })
+      : null;
   const shareText = buildShareString({
     puzzleNumber,
     solvedCropIndex,
@@ -349,6 +371,8 @@ export function Game() {
     gotReference: false,
     streak,
     siteName: SITE,
+    score,
+    url: `${location.host}/s`,
   });
 
   return (
@@ -431,9 +455,10 @@ export function Game() {
           solvedCropIndex={solvedCropIndex}
           stats={stats}
           streak={streak}
+          score={score}
           shareText={shareText}
           copyState={copyState}
-          onCopy={() => copyShare(shareText)}
+          onShare={() => shareResult(shareText)}
         />
       )}
     </div>
@@ -567,18 +592,20 @@ function Result({
   solvedCropIndex,
   stats,
   streak,
+  score,
   shareText,
   copyState,
-  onCopy,
+  onShare,
 }: {
   date: string;
   reveal: Reveal | null;
   solvedCropIndex: number | null;
   stats: Stats;
   streak: number;
+  score: number | null;
   shareText: string;
   copyState: "idle" | "copied" | "failed";
-  onCopy: () => void;
+  onShare: () => void;
 }) {
   const won = solvedCropIndex !== null;
   return (
@@ -630,12 +657,20 @@ function Result({
         <p className="text-[var(--muted)]">Come back tomorrow for a new watch.</p>
       )}
 
+      {score !== null && (
+        <p className="text-center text-sm text-[var(--muted)]">
+          Horology Score <span className="text-lg font-bold text-[var(--ink)]">{score}</span>
+          <br />
+          Earlier crops and rarer watches score more.
+        </p>
+      )}
+
       <pre className="whitespace-pre-wrap rounded-xl border border-white/10 bg-[var(--panel)] p-4 text-center text-lg leading-snug select-all">
         {shareText}
       </pre>
 
       <button
-        onClick={onCopy}
+        onClick={onShare}
         className="rounded-lg bg-[var(--gold)] px-4 py-3 font-semibold text-black transition hover:brightness-110"
       >
         {copyState === "copied"

@@ -58,7 +58,7 @@ export function placeholderCropSvg(seed: number, cropIndex: number): string {
       <!-- crown -->
       <rect x="466" y="288" width="26" height="24" rx="5" fill="${bezel}" />
       <!-- indices -->
-      ${indices(dial)}
+      ${indices()}
       <!-- hands -->
       <g transform="rotate(${handAngle} 300 300)">
         <rect x="296" y="190" width="8" height="120" rx="4" fill="#e7e9ee" />
@@ -75,7 +75,7 @@ export function placeholderCropSvg(seed: number, cropIndex: number): string {
 </svg>`;
 }
 
-function indices(dial: string): string {
+function indices(): string {
   const parts: string[] = [];
   for (let k = 0; k < 12; k++) {
     const a = (k / 12) * Math.PI * 2;

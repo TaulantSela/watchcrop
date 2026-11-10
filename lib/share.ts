@@ -9,6 +9,10 @@ export type ShareInput = {
   gotReference: boolean;
   streak: number;
   siteName?: string;
+  /** Horology Score, shown for solves: the depth axis, worth bragging about. */
+  score?: number | null;
+  /** Where friends can play, e.g. "watchcrop.app/s". */
+  url?: string;
 };
 
 const MEDAL_SQUARE: Record<Medal, string> = {
@@ -21,8 +25,9 @@ const MEDAL_SQUARE: Record<Medal, string> = {
 /**
  * Spoiler-free share grid — the #1 growth feature. NEVER contains the answer.
  * Example:
- *   WatchCrop #142 — 3/6 🥈⭐ · streak 24
+ *   WatchCrop #142 — 3/6 🥈⭐ · 120 pts · streak 24
  *   🟥🟥⬜⬛⬛⬛
+ *   watchcrop.app/s
  */
 export function buildShareString(input: ShareInput): string {
   const site = input.siteName ?? "WatchCrop";
@@ -43,10 +48,12 @@ export function buildShareString(input: ShareInput): string {
   const flags =
     (solved ? medalEmoji(input.medal) : "") + (input.gotReference ? "⭐" : "") + (input.usedHint ? "🔧" : "");
 
-  const header = `${site} #${input.puzzleNumber} — ${result} ${flags}`.trim() +
+  const header =
+    `${site} #${input.puzzleNumber} — ${result} ${flags}`.trim() +
+    (solved && input.score ? ` · ${input.score} pts` : "") +
     (input.streak > 0 ? ` · streak ${input.streak}` : "");
 
-  return `${header}\n${squares.join("")}`;
+  return [header, squares.join(""), input.url].filter(Boolean).join("\n");
 }
 
 function medalEmoji(medal: Medal): string {
