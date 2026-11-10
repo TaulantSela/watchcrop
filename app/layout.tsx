@@ -10,6 +10,7 @@ export const metadata: Metadata = {
     title: `${SITE} — name the watch`,
     description: "A daily guess-the-watch game for people who recognize a watch at a glance.",
   },
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
