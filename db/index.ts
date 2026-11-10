@@ -26,6 +26,14 @@ let bootstrapPromise: Promise<void> | null = null;
 function ensureInit(): Db {
   if (instance) return instance;
   if (isPglite) {
+    // In production an in-memory database silently drops every write (the
+    // waitlist is the whole point of the de-risk phase) on each cold start.
+    // Fail loudly instead of pretending to work.
+    if (process.env.VERCEL_ENV === "production") {
+      throw new Error(
+        "DATABASE_URL is not set in production. Refusing to fall back to the in-memory demo database.",
+      );
+    }
     pglite = new PGlite(); // in-memory
     instance = drizzlePglite(pglite, { schema }) as unknown as Db;
     bootstrapPromise = bootstrapPglite(pglite, instance);
