@@ -19,12 +19,20 @@ export const isPglite = !url || url.startsWith("pglite") || url.startsWith("memo
 
 type Db = PostgresJsDatabase<typeof schema>;
 
-let instance: Db | null = null;
-let pglite: PGlite | null = null;
-let bootstrapPromise: Promise<void> | null = null;
+/**
+ * One database per process, kept on globalThis. `next dev` bundles each route
+ * separately, so plain module-level state gave every route its own in-memory
+ * demo database: an admin save was invisible to the admin page, and counters
+ * reset between routes. (Production uses one Postgres either way.)
+ */
+type DbState = { instance: Db | null; bootstrap: Promise<void> | null };
+const state: DbState = ((globalThis as { __watchcropDb?: DbState }).__watchcropDb ??= {
+  instance: null,
+  bootstrap: null,
+});
 
 function ensureInit(): Db {
-  if (instance) return instance;
+  if (state.instance) return state.instance;
   if (isPglite) {
     // In production an in-memory database silently drops every write (the
     // waitlist is the whole point of the de-risk phase) on each cold start.
@@ -34,14 +42,14 @@ function ensureInit(): Db {
         "DATABASE_URL is not set in production. Refusing to fall back to the in-memory demo database.",
       );
     }
-    pglite = new PGlite(); // in-memory
-    instance = drizzlePglite(pglite, { schema }) as unknown as Db;
-    bootstrapPromise = bootstrapPglite(pglite, instance);
+    const pglite = new PGlite(); // in-memory
+    state.instance = drizzlePglite(pglite, { schema }) as unknown as Db;
+    state.bootstrap = bootstrapPglite(pglite, state.instance);
   } else {
     const client = postgres(url!, { prepare: false });
-    instance = drizzlePg(client, { schema });
+    state.instance = drizzlePg(client, { schema });
   }
-  return instance;
+  return state.instance;
 }
 
 async function bootstrapPglite(pg: PGlite, d: Db): Promise<void> {
@@ -61,7 +69,7 @@ async function bootstrapPglite(pg: PGlite, d: Db): Promise<void> {
 /** The ONLY safe way to get the database — awaits PGlite bootstrap if needed. */
 export async function getDb(): Promise<Db> {
   const i = ensureInit();
-  if (bootstrapPromise) await bootstrapPromise;
+  if (state.bootstrap) await state.bootstrap;
   return i;
 }
 
