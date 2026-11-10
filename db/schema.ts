@@ -18,34 +18,45 @@ import {
 export type CropSpec = { x: number; y: number; w: number; h: number; blur: number };
 
 /** One watch in the catalog. We own the photo for every Tier-1 entry. */
-export const watches = pgTable("watches", {
-  id: serial("id").primaryKey(),
-  brand: text("brand").notNull(),
-  model: text("model").notNull(), // model FAMILY, e.g. "Submariner"
-  reference: text("reference"), // e.g. "126610LN"
-  year: integer("year"),
-  movement: text("movement"),
-  priceTier: text("price_tier").notNull().default("mid"), // entry | mid | luxury | grail
-  // 1..5; higher = more obscure. Drives the Horology Score.
-  difficultyWeight: integer("difficulty_weight").notNull().default(2),
-  specBullets: jsonb("spec_bullets").$type<string[]>().default([]),
+export const watches = pgTable(
+  "watches",
+  {
+    id: serial("id").primaryKey(),
+    brand: text("brand").notNull(),
+    model: text("model").notNull(), // model FAMILY, e.g. "Submariner"
+    reference: text("reference"), // e.g. "126610LN"
+    year: integer("year"),
+    movement: text("movement"),
+    priceTier: text("price_tier").notNull().default("mid"), // entry | mid | luxury | grail
+    // 1..5; higher = more obscure. Drives the Horology Score.
+    difficultyWeight: integer("difficulty_weight").notNull().default(2),
+    specBullets: jsonb("spec_bullets").$type<string[]>().default([]),
 
-  // --- Monetization ---
-  affiliateRef: text("affiliate_ref"), // key used by /go/[ref]; null = no affiliate path
-  affiliateUrl: text("affiliate_url"), // destination URL (with your tag)
+    // --- Monetization ---
+    affiliateRef: text("affiliate_ref"), // key used by /go/[ref]; null = no affiliate path
+    affiliateUrl: text("affiliate_url"), // destination URL (with your tag)
 
-  // --- Image + crops ---
-  masterBlobKey: text("master_blob_key"), // Vercel Blob key of the high-res master
-  cropSpecs: jsonb("crop_specs").$type<CropSpec[]>().default([]), // 6 entries
+    // --- Image + crops ---
+    masterBlobKey: text("master_blob_key"), // Vercel Blob key of the high-res master
+    cropSpecs: jsonb("crop_specs").$type<CropSpec[]>().default([]), // 6 entries
 
-  // --- Compliance / provenance (the scheduler refuses puzzles missing this) ---
-  distinctiveDesign: boolean("distinctive_design").notNull().default(false), // trade-dress watchlist
-  photoSource: text("photo_source"), // own | licensed | cc-by | community
-  photoLicense: text("photo_license"),
-  attribution: text("attribution"),
+    // --- Compliance / provenance (the scheduler refuses puzzles missing this) ---
+    distinctiveDesign: boolean("distinctive_design").notNull().default(false), // trade-dress watchlist
+    photoSource: text("photo_source"), // own | licensed | cc-by | community
+    photoLicense: text("photo_license"),
+    attribution: text("attribution"),
+    // When a human confirmed no logo/wordmark survives in any of the 6 crops.
+    // Cleared whenever the crops change; the scheduler requires it.
+    logoQaAt: timestamp("logo_qa_at"),
 
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    // /go/[ref] picks the first match, so a duplicate ref would silently send
+    // clicks to the wrong watch.
+    affiliateRefUnique: uniqueIndex("watches_affiliate_ref_unique").on(t.affiliateRef),
+  }),
+);
 
 /** The daily schedule. One watch per UTC day. */
 export const puzzles = pgTable(
