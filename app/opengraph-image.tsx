@@ -33,8 +33,7 @@ export default function Image() {
       >
         <div style={{ display: "flex", gap: 24 }}>
           {[0, 2, 4].map((i) => (
-            // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
-            <img key={i} src={crop(i)} width={220} height={220} style={{ borderRadius: 20 }} />
+            <img key={i} src={crop(i)} alt="" width={220} height={220} style={{ borderRadius: 20 }} />
           ))}
         </div>
         <div style={{ fontSize: 30, color: "#c9a24b", marginTop: 40 }}>{SITE}</div>
