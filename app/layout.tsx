@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { VisitTracker } from "@/components/VisitTracker";
 import "./globals.css";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_NAME ?? "WatchCrop";
@@ -16,7 +17,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen antialiased">{children}</body>
+      <body className="min-h-screen antialiased">
+        {children}
+        <VisitTracker />
+      </body>
     </html>
   );
 }
