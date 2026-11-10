@@ -22,7 +22,7 @@ const MEDAL_SQUARE: Record<Medal, string> = {
  * Spoiler-free share grid — the #1 growth feature. NEVER contains the answer.
  * Example:
  *   WatchCrop #142 — 3/6 🥈⭐ · streak 24
- *   ⬛⬛⬜⬛⬛⬛
+ *   🟥🟥⬜⬛⬛⬛
  */
 export function buildShareString(input: ShareInput): string {
   const site = input.siteName ?? "WatchCrop";
@@ -32,10 +32,10 @@ export function buildShareString(input: ShareInput): string {
   for (let i = 0; i < MAX_CROPS; i++) {
     if (solved && i === input.solvedCropIndex) {
       squares.push(MEDAL_SQUARE[input.medal]);
-    } else if (solved && i < (input.solvedCropIndex ?? 0)) {
-      squares.push("🟥"); // missed crops before the solve
+    } else if (!solved || i < (input.solvedCropIndex ?? 0)) {
+      squares.push("🟥"); // a missed crop (a loss misses all of them)
     } else {
-      squares.push("⬛");
+      squares.push("⬛"); // never needed
     }
   }
 
