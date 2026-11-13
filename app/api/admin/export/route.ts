@@ -14,9 +14,9 @@ export async function GET(req: Request) {
   const db = await getDb();
   const rows = await db.select().from(waitlist).orderBy(asc(waitlist.createdAt));
 
-  const header = ["email", "signed_up_at", "form", "utm_source", "utm_medium", "utm_campaign", "referrer_host"];
+  const header = ["email", "signed_up_at", "form", "utm_source", "utm_medium", "utm_campaign", "referrer_host", "flagged_bot"];
   const lines = rows.map((r) =>
-    [r.email, r.createdAt, r.source, r.utmSource, r.utmMedium, r.utmCampaign, r.referrerHost]
+    [r.email, r.createdAt, r.source, r.utmSource, r.utmMedium, r.utmCampaign, r.referrerHost, r.flaggedBot]
       .map(csvField)
       .join(","),
   );

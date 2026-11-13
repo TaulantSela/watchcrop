@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { isBotRequest } from "@/lib/botcheck";
 import { MAX_CROPS, todayKey } from "@/lib/daily";
 import { getBrandAliasMap, getModelAliasMap, getTodayPuzzle, logGuess } from "@/lib/game";
 import { judgeGuess } from "@/lib/normalize";
+import { hit, LIMITS, tooManyRequests } from "@/lib/rate-limit";
 import { buildReveal } from "@/lib/reveal";
 import { cropUrl, verifyCrop } from "@/lib/sign";
 
@@ -41,6 +43,13 @@ export async function POST(req: Request) {
   // cropIndex: 4 handed back crop 6 (the whole watch) without playing.
   if (!verifyCrop(date, body.cropIndex, body.token)) {
     return NextResponse.json({ error: "crop not unlocked" }, { status: 403 });
+  }
+
+  // Checked after the token: requests without one are refused for free above.
+  const limit = await hit(LIMITS.guess, req);
+  if (!limit.ok) return tooManyRequests(limit, "Too many guesses from your network. Try again in a few minutes.");
+  if (await isBotRequest()) {
+    return NextResponse.json({ error: "couldn't verify this browser", code: "bot" }, { status: 403 });
   }
 
   const puzzle = await getTodayPuzzle(date);

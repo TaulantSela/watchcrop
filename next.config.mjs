@@ -1,3 +1,5 @@
+import { withBotId } from "botid/next/config";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Allow importing the heavy native `sharp` dep only in Node server code.
@@ -10,4 +12,5 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+// withBotId adds the rewrites that proxy BotID's challenge script and checks.
+export default withBotId(nextConfig);

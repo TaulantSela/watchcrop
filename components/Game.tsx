@@ -124,6 +124,9 @@ function tokenOf(cropUrl: string | undefined): string {
   return cropUrl ? (new URL(cropUrl, "http://local").searchParams.get("t") ?? "") : "";
 }
 
+/** A failure with a message meant for the player (not "check your connection"). */
+class PlayerFacingError extends Error {}
+
 /** Today's puzzle and the autocomplete index. Pure fetch: no React state. */
 async function fetchBootstrap(): Promise<{ meta: Meta; catalog: Catalog }> {
   const [mRes, cRes] = await Promise.all([fetch("/api/puzzle/today"), fetch("/api/catalog")]);
@@ -237,7 +240,16 @@ export function Game() {
       setRolledOver(true);
       return null;
     }
-    if (!res.ok) throw new Error(`guess failed: ${res.status}`);
+    if (res.status === 429) {
+      throw new PlayerFacingError("Too many guesses from your network. Try again in a few minutes.");
+    }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data.code === "bot") {
+        throw new PlayerFacingError("Couldn't verify your browser. Reload the page and try again.");
+      }
+      throw new Error(`guess failed: ${res.status}`);
+    }
     return res.json();
   }
 
@@ -246,8 +258,8 @@ export function Game() {
     setBusy(true);
     try {
       await action();
-    } catch {
-      setNote("Couldn't reach the server. Try again.");
+    } catch (err) {
+      setNote(err instanceof PlayerFacingError ? err.message : "Couldn't reach the server. Try again.");
     } finally {
       setBusy(false);
     }

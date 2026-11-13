@@ -75,7 +75,7 @@ The demo art (`lib/cropImage.ts`) is generated SVG — zero real photos, zero ri
 1. **Image-source gut check.** For your first ~90 target watches, write down where each photo would actually come from. If >30% isn't "I'll shoot it" or "paid/verified CC-BY", stop — the pipeline is broken.
 2. **Incumbent autopsy.** Check the existing watch-guess games' traffic + count real daily share-grid pastes. Are they growing or stalled?
 3. **Manual daily.** Run a "guess the watch" post by hand in r/Watches / WatchCrunch / WatchUSeek for ~2 weeks. Measure unique daily players + organic reshares.
-4. **Fake-door waitlist.** This landing page. Tag every link you post (`/?utm_source=reddit&utm_campaign=r-watches-0611`); the **Demand** panel at the top of `/admin/crop` shows visits, signups and conversion by source and by day, and exports the list as CSV. Visits are counted once per browser session with no personal data; signups go through a honeypot and a minimum-fill-time check so scripted junk doesn't inflate the number.
+4. **Fake-door waitlist.** This landing page. Tag every link you post (`/?utm_source=reddit&utm_campaign=r-watches-0611`); the **Demand** panel at the top of `/admin/crop` shows visits, signups and conversion by source and by day, and exports the list as CSV. Visits are counted once per browser session with no personal data; signups go through a honeypot, a minimum-fill-time check, a per-network rate limit and Vercel BotID, so scripted junk doesn't inflate the number (BotID-flagged signups are kept in the CSV as `flagged_bot` but left out of the counts).
 5. **Affiliate EPC test.** Apply to programs, run a few manual "answer → buy" posts through `/go/[ref]`, and measure real EPC over 30–45 days. (Note: Chrono24 has **no** affiliate program — the reveal falls back to a non-monetized market link for those.)
 
 **Gate:** don't flip `NEXT_PUBLIC_GAME_LIVE=true` / build the photo library until the manual daily + waitlist show a credible path past ~1k DAU.
@@ -111,5 +111,4 @@ Don't pull the production `DATABASE_URL` into `.env.local`: local dev (and the d
 - Drag-to-crop authoring UI in `/admin` (today: define `cropSpecs` JSON + `scripts/cut.ts`).
 - Swap the demo SVG crop route for Blob-served real crops once you have masters.
 - Accounts (cross-device streaks), archive/practice mode (paid), exact-reference guessing, head-to-head.
-- Rate-limit `/api/guess` (Upstash Redis) — also powers the live "X solved today" counter.
 - FTC: have the reveal-screen affiliate disclosure + any sponsored-puzzle labeling reviewed before turning on money.

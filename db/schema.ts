@@ -127,6 +127,9 @@ export const waitlist = pgTable(
     utmMedium: text("utm_medium"),
     utmCampaign: text("utm_campaign"),
     referrerHost: text("referrer_host"),
+    // Vercel BotID called this request a bot. Kept (a false positive must not
+    // silently lose a real signup) but left out of the demand numbers.
+    flaggedBot: boolean("flagged_bot").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [
@@ -152,6 +155,23 @@ export const visits = pgTable(
   },
   (t) => [
     index("visits_created_idx").on(t.createdAt),
+  ],
+);
+
+/**
+ * Fixed-window request counters for rate limiting (lib/rate-limit.ts). The key
+ * is "<limit>:<keyed hash of the client IP>", never the IP itself, and rows
+ * older than a day are swept, so this holds nothing that identifies anyone.
+ */
+export const rateLimits = pgTable(
+  "rate_limits",
+  {
+    key: text("key").primaryKey(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull().defaultNow(),
+    hits: integer("hits").notNull().default(1),
+  },
+  (t) => [
+    index("rate_limits_window_idx").on(t.windowStart),
   ],
 );
 
