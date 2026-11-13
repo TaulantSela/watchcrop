@@ -10,6 +10,7 @@ const ready: GateInput = {
   distinctiveDesign: false,
   masterBlobKey: "sub.jpg",
   cropSpecs: crops,
+  cropKeys: crops.map((_, i) => `crops/1/abc/${i}.webp`),
   logoQaAt: "2026-11-10T10:00:00Z",
 };
 
@@ -45,6 +46,10 @@ describe("scheduling gate", () => {
       "Needs 6 crop rectangles.",
       "Crops not yet checked for surviving logos.",
     ]);
+  });
+
+  it("needs the crops actually cut, not just the rectangles", () => {
+    expect(schedulingProblems({ ...ready, cropKeys: [] })).toEqual(["Crops not cut from the master yet."]);
   });
 });
 

@@ -29,15 +29,17 @@ export default async function Admin({
 
   const today = todayKey();
   const db = await getDb();
-  const [allWatches, ahead, demand] = await Promise.all([
+  const [allWatches, ahead, scheduledRows, demand] = await Promise.all([
     db.select().from(watches).orderBy(desc(watches.id)),
     db
       .select({ date: puzzles.puzzleDate, n: puzzles.puzzleNumber, brand: watches.brand, model: watches.model })
       .from(puzzles)
       .innerJoin(watches, eq(puzzles.watchId, watches.id))
       .where(gte(puzzles.puzzleDate, today)),
+    db.selectDistinct({ watchId: puzzles.watchId }).from(puzzles),
     getDemandStats(),
   ]);
+  const scheduled = new Set(scheduledRows.map((r) => r.watchId));
 
   const byDate = new Map(ahead.map((p) => [p.date, p]));
   const upcoming: UpcomingDay[] = Array.from({ length: 14 }, (_, i) => {
@@ -53,10 +55,19 @@ export default async function Admin({
     reference: w.reference,
     photoSource: w.photoSource,
     distinctiveDesign: w.distinctiveDesign,
-    masterBlobKey: w.masterBlobKey,
-    cropCount: w.cropSpecs?.length ?? 0,
+    cropCount: w.cropKeys?.length ?? 0,
     logoQaAt: w.logoQaAt ? w.logoQaAt.toISOString() : null,
     problems: schedulingProblems(w),
+    photo: {
+      id: w.id,
+      masterKey: w.masterBlobKey,
+      masterSize: w.masterWidth && w.masterHeight ? { width: w.masterWidth, height: w.masterHeight } : null,
+      cropSpecs: w.cropSpecs ?? [],
+      logoMasks: w.logoMasks ?? [],
+      // crops/<id>/<version>/<i>.webp: the version changes on every re-cut.
+      cropVersion: w.cropKeys?.length === 6 ? w.cropKeys[0].split("/")[2] : null,
+      scheduled: scheduled.has(w.id),
+    },
   }));
 
   return (

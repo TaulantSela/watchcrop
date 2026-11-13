@@ -25,7 +25,7 @@ In-depth guides live in [docs/](docs/):
 - **Neon Postgres** + **Drizzle ORM**
 - **Tailwind v4**
 - **Fuse.js** client-side autocomplete
-- **sharp** for the production crop pipeline
+- **sharp** + a private **Vercel Blob** store for the photo pipeline (master photo → 6 crops)
 
 ## Setup
 
@@ -49,10 +49,10 @@ npm run dev
 | --- | --- |
 | `/` | Waitlist landing (de-risk). Switches to a "Play" CTA when the game is live. |
 | `/play` | The daily game (client component `components/Game.tsx`). |
-| `/admin/crop` | Token-gated tool to add watches + schedule puzzles. |
+| `/admin/crop` | Token-gated tool: add watches, upload photos, set crops + logo masks, sign off, schedule. |
 | `GET /api/puzzle/today` | Today's puzzle **without the answer** — only the crop-0 URL. |
 | `POST /api/guess` | Server-side check. Returns `{correct}` + the **next** signed crop, or the reveal on solve/exhaust. |
-| `GET /api/crop/[date]/[index]` | Serves a crop **only with a valid HMAC token**. Demo art today; swap to Blob in prod. |
+| `GET /api/crop/[date]/[index]` | Serves a crop **only with a valid HMAC token**, streamed from the private store (demo art for watches with no photo). |
 | `GET /api/catalog` | Full-catalog autocomplete index (leaks nothing about today). |
 | `GET /go/[ref]` | Tracked affiliate redirect — logs the click to **your** table for honest EPC. |
 | `POST /api/waitlist` | Email capture — the durable asset. |
@@ -68,7 +68,16 @@ Copyright lives in the **photograph**, owned by whoever took it — not the bran
 
 The only safe backbone is **shoot your own** (`photoSource: "own"` — you own the copyright the instant the shutter fires). The scheduler **refuses any watch that fails the provenance gate** ([lib/provenance.ts](lib/provenance.ts)): no recorded photo source, a community photo, a licensed photo without its license, CC BY without attribution, a protected design not shot by you, or crops nobody has signed off for surviving logos. Fill the catalog by borrowing watches from local ADs / microbrands / collectors in exchange for the affiliate link + a reveal credit. License only the *metadata* (specs), never wire stock/marketplace/press-kit images into puzzles. Community submissions are **lead-gen** (which watch to shoot), not a content source.
 
-The demo art (`lib/cropImage.ts`) is generated SVG — zero real photos, zero rights exposure — so you can run and demo the whole loop today. `scripts/cut.ts` is the production path: cut 6 crops from your own master with `sharp` into `./crops` (never `public/`, which would serve crop 6 to anyone), **human-QA that no logo survived** and sign it off in `/admin/crop`, then serve them from Blob.
+The demo art (`lib/cropImage.ts`) is generated SVG — zero real photos, zero rights exposure — and is what the seeded demo watches show.
+
+Real puzzles, all in `/admin/crop` → a watch → **Photo & crops**:
+
+1. **Upload the master** (your own photo). The browser re-encodes it to JPEG (≤ 4096px, under the 4.5 MB request limit, HEIC works, EXIF and location dropped) and the server stores it in the **private** Blob store, then cuts a default ladder of 6 crops.
+2. **Adjust the crop rectangles and add logo masks** over every logo, wordmark and signed text. Both are drawn over the photo as you edit. Masks are blurred out of every crop before cutting, which is what lets crops 4–6 show the whole dial.
+3. **Save and re-cut**, look at the 6 crops shown underneath, and **sign off the logo check**. Those exact files are what players get (`lib/crops.ts`, `lib/photo-pipeline.ts`).
+4. **Schedule it.** From then on its photo and crops are frozen; unschedule a future day to change them.
+
+Nothing in the store has a public URL: the crop route checks the token and streams the bytes. Off Vercel with no store configured, photos go to `./.photos` instead, so the whole flow runs locally.
 
 ## De-risk playbook (do this before the content treadmill)
 
@@ -96,6 +105,9 @@ vercel env add NEXT_PUBLIC_GAME_LIVE -e production --value false
 vercel env add NEXT_PUBLIC_CONTACT_EMAIL -e production --value you@your-address   # shown on /privacy
 vercel env run -e production -- npm run db:migrate    # create the tables in Neon
 
+# Photos: a PRIVATE Blob store, connected to production and preview (sets BLOB_STORE_ID; auth is OIDC).
+vercel blob create-store watchcrop-photos --access private
+
 # Previews: no DATABASE_URL (PGlite demo), their own secrets, game switched on for review.
 vercel env add GUESS_SECRET -e preview --yes --value "$(openssl rand -hex 32)"
 vercel env add ADMIN_TOKEN -e preview --yes --value "$(openssl rand -hex 32)"
@@ -108,7 +120,6 @@ Don't pull the production `DATABASE_URL` into `.env.local`: local dev (and the d
 
 ## Known TODO / fast-follows
 
-- Drag-to-crop authoring UI in `/admin` (today: define `cropSpecs` JSON + `scripts/cut.ts`).
-- Swap the demo SVG crop route for Blob-served real crops once you have masters.
+- Drag-to-crop authoring UI in `/admin` (today: rectangle JSON with a live overlay on the photo).
 - Accounts (cross-device streaks), archive/practice mode (paid), exact-reference guessing, head-to-head.
 - FTC: have the reveal-screen affiliate disclosure + any sponsored-puzzle labeling reviewed before turning on money.

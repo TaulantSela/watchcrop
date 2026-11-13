@@ -6,6 +6,8 @@ import { aliases, puzzles, watches } from "@/db/schema";
 import { isAdminToken } from "@/lib/admin-auth";
 import { todayKey } from "@/lib/daily";
 import { normalize } from "@/lib/normalize";
+import { cutAndStore, isScheduled } from "@/lib/photo-pipeline";
+import { PhotoStoreMissingError } from "@/lib/photo-store";
 import { PHOTO_SOURCES, schedulingProblems } from "@/lib/provenance";
 import { puzzleNumberFor } from "@/lib/schedule";
 
@@ -20,6 +22,13 @@ const CropSpec = z.object({
   w: z.number().int().positive(),
   h: z.number().int().positive(),
   blur: z.number().min(0).max(50),
+});
+
+const MaskRect = z.object({
+  x: z.number().int().min(0),
+  y: z.number().int().min(0),
+  w: z.number().int().positive(),
+  h: z.number().int().positive(),
 });
 
 const AddWatch = z.object({
@@ -40,8 +49,7 @@ const AddWatch = z.object({
   photoLicense: optText(500),
   attribution: optText(500),
   distinctiveDesign: z.boolean().default(false),
-  masterBlobKey: optText(200),
-  cropSpecs: z.array(CropSpec).length(6).optional(),
+  // The photo comes later, through /api/admin/master.
   brandAliases: z.array(z.string().max(60)).max(20).default([]),
   modelAliases: z.array(z.string().max(60)).max(20).default([]),
 });
@@ -49,8 +57,8 @@ const AddWatch = z.object({
 const SetCrops = z.object({
   action: z.literal("setCrops"),
   watchId: z.coerce.number().int(),
-  masterBlobKey: z.string().trim().min(1).max(200),
   cropSpecs: z.array(CropSpec).length(6),
+  logoMasks: z.array(MaskRect).max(20).default([]),
 });
 
 const MarkQa = z.object({ action: z.literal("markQa"), watchId: z.coerce.number().int() });
@@ -107,11 +115,22 @@ export async function POST(req: Request) {
     }
 
     case "setCrops": {
-      if (!(await findWatch(body.watchId))) return fail(404, "no such watch");
+      const w = await findWatch(body.watchId);
+      if (!w) return fail(404, "no such watch");
+      if (!w.masterBlobKey) return fail(422, "upload the master photo first");
+      if (await isScheduled(w.id)) return fail(409, "this watch is scheduled: unschedule it before changing its crops");
+      let cut;
+      try {
+        cut = await cutAndStore(w.id, w.masterBlobKey, body.cropSpecs, body.logoMasks);
+      } catch (err) {
+        if (err instanceof PhotoStoreMissingError) return fail(503, err.message);
+        throw err;
+      }
+      if (!cut.ok) return fail(422, "these crops can't be cut", { problems: cut.problems });
       // New crops are unchecked crops: the logo QA has to be redone.
       await db
         .update(watches)
-        .set({ masterBlobKey: body.masterBlobKey, cropSpecs: body.cropSpecs, logoQaAt: null })
+        .set({ cropSpecs: body.cropSpecs, logoMasks: body.logoMasks, cropKeys: cut.cropKeys, logoQaAt: null })
         .where(eq(watches.id, body.watchId));
       return NextResponse.json({ ok: true });
     }
@@ -119,8 +138,8 @@ export async function POST(req: Request) {
     case "markQa": {
       const w = await findWatch(body.watchId);
       if (!w) return fail(404, "no such watch");
-      if (!w.masterBlobKey || (w.cropSpecs?.length ?? 0) !== 6) {
-        return fail(422, "set the master photo and all 6 crops before signing off the logo check");
+      if (!w.masterBlobKey || (w.cropKeys?.length ?? 0) !== 6) {
+        return fail(422, "upload the master photo and cut all 6 crops before signing off the logo check");
       }
       await db.update(watches).set({ logoQaAt: new Date() }).where(eq(watches.id, body.watchId));
       return NextResponse.json({ ok: true });

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Runway } from "@/lib/schedule";
+import { PhotoPanel, type PhotoInfo } from "./AdminPhotoPanel";
 
 export type AdminWatch = {
   id: number;
@@ -10,16 +11,15 @@ export type AdminWatch = {
   reference: string | null;
   photoSource: string | null;
   distinctiveDesign: boolean;
-  masterBlobKey: string | null;
+  /** Cut crop files (0–6). */
   cropCount: number;
   logoQaAt: string | null;
   /** Why it can't be scheduled yet; empty = ready. */
   problems: string[];
+  photo: PhotoInfo;
 };
 
 export type UpcomingDay = { date: string; puzzle: { n: number; name: string } | null };
-
-const CROP_SPECS_HINT = `[{"x":1200,"y":800,"w":300,"h":300,"blur":0}, … 6 rectangles, macro → whole watch]`;
 
 const field =
   "rounded border border-white/10 bg-[var(--panel)] px-3 py-2 outline-none focus:border-[var(--gold)]";
@@ -79,25 +79,9 @@ export function AdminClient({
     }
   }
 
-  /** Parses the crop JSON textarea, reporting a readable error instead of throwing. */
-  function parseCrops(raw: FormDataEntryValue | null): unknown[] | null {
-    const s = String(raw ?? "").trim();
-    if (!s) return [];
-    try {
-      const v = JSON.parse(s);
-      if (Array.isArray(v)) return v;
-    } catch {
-      /* fall through */
-    }
-    setMsg({ ok: false, text: "Crop rectangles must be a JSON array of 6 {x, y, w, h, blur} objects." });
-    return null;
-  }
-
   function addWatch(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
-    const cropSpecs = parseCrops(f.get("cropSpecs"));
-    if (cropSpecs === null) return;
     post({
       action: "addWatch",
       brand: f.get("brand"),
@@ -113,8 +97,6 @@ export function AdminClient({
       photoLicense: text(f.get("photoLicense")),
       attribution: text(f.get("attribution")),
       distinctiveDesign: f.get("distinctiveDesign") === "on",
-      masterBlobKey: text(f.get("masterBlobKey")),
-      cropSpecs: cropSpecs.length ? cropSpecs : undefined,
       // Newlines only: a spec like "41mm, Oystersteel" must stay one bullet.
       specBullets: String(f.get("specBullets") ?? "")
         .split("\n")
@@ -125,12 +107,8 @@ export function AdminClient({
     });
   }
 
-  function setCrops(e: React.FormEvent<HTMLFormElement>, watchId: number) {
-    e.preventDefault();
-    const f = new FormData(e.currentTarget);
-    const cropSpecs = parseCrops(f.get("cropSpecs"));
-    if (cropSpecs === null) return;
-    post({ action: "setCrops", watchId, masterBlobKey: text(f.get("masterBlobKey")), cropSpecs });
+  function saveCrops(watchId: number, cropSpecs: unknown[], logoMasks: unknown[]) {
+    post({ action: "setCrops", watchId, cropSpecs, logoMasks });
   }
 
   function markQa(w: AdminWatch) {
@@ -247,9 +225,9 @@ export function AdminClient({
                 </span>
                 <span className="flex gap-2">
                   <button className={quiet} onClick={() => setEditing(editing === w.id ? null : w.id)}>
-                    {editing === w.id ? "Close" : "Set crops"}
+                    {editing === w.id ? "Close" : "Photo & crops"}
                   </button>
-                  {!w.logoQaAt && w.masterBlobKey && w.cropCount === 6 && (
+                  {!w.logoQaAt && w.cropCount === 6 && (
                     <button className={quiet} disabled={busy} onClick={() => markQa(w)}>
                       Sign off logo check
                     </button>
@@ -257,8 +235,10 @@ export function AdminClient({
                 </span>
               </div>
               <p className="mt-1 text-[var(--muted)]">
-                photo: {w.photoSource ?? "—"} · master: {w.masterBlobKey ?? "—"} · crops: {w.cropCount}/6 · logo
-                check: {w.logoQaAt ? w.logoQaAt.slice(0, 10) : "not done"}
+                photo: {w.photoSource ?? "—"} · master:{" "}
+                {w.photo.masterSize ? `${w.photo.masterSize.width}×${w.photo.masterSize.height}` : "—"} · crops:{" "}
+                {w.cropCount}/6 · logo check: {w.logoQaAt ? w.logoQaAt.slice(0, 10) : "not done"}
+                {w.photo.scheduled && " · scheduled"}
               </p>
               {w.problems.length === 0 ? (
                 <p className="mt-1 text-emerald-400">✓ Ready to schedule</p>
@@ -270,22 +250,13 @@ export function AdminClient({
                 </ul>
               )}
               {editing === w.id && (
-                <form onSubmit={(e) => setCrops(e, w.id)} className="mt-3 flex flex-col gap-2">
-                  <input
-                    name="masterBlobKey"
-                    required
-                    defaultValue={w.masterBlobKey ?? ""}
-                    placeholder="Master photo key (file in ./masters for scripts/cut.ts)"
-                    className={field}
-                  />
-                  <textarea name="cropSpecs" required rows={4} placeholder={CROP_SPECS_HINT} className={`${field} font-mono text-xs`} />
-                  <p className="text-xs text-[var(--muted)]">
-                    Saving new crops clears the logo check: re-run scripts/cut.ts and check them again.
-                  </p>
-                  <button className={button} disabled={busy}>
-                    Save crops
-                  </button>
-                </form>
+                <PhotoPanel
+                  watch={w.photo}
+                  token={token}
+                  busy={busy}
+                  onSaveCrops={saveCrops}
+                  onMessage={(ok, text) => setMsg({ ok, text })}
+                />
               )}
             </li>
           ))}
@@ -294,7 +265,8 @@ export function AdminClient({
 
       {/* --- Add watch --- */}
       <section>
-        <h2 className="mb-3 font-semibold">Add a watch</h2>
+        <h2 className="mb-1 font-semibold">Add a watch</h2>
+        <p className="mb-3 text-xs text-[var(--muted)]">Save it first, then add its photo under Photo &amp; crops.</p>
         <form onSubmit={addWatch} className="grid grid-cols-2 gap-3">
           <input name="brand" placeholder="Brand *" required className={field} />
           <input name="model" placeholder="Model family *" required className={field} />
@@ -331,10 +303,8 @@ export function AdminClient({
             <input name="attribution" placeholder="Attribution (required for CC BY)" className={`${field} col-span-2`} />
           </fieldset>
 
-          <input name="masterBlobKey" placeholder="Master photo key (optional now)" className={field} />
-          <input name="affiliateRef" placeholder="Affiliate ref (e.g. omega-speedmaster)" className={field} />
+          <input name="affiliateRef" placeholder="Affiliate ref (e.g. omega-speedmaster)" className={`${field} col-span-2`} />
           <input name="affiliateUrl" placeholder="Affiliate URL (https://…)" className={`${field} col-span-2`} />
-          <textarea name="cropSpecs" rows={3} placeholder={`Crop rectangles (optional now): ${CROP_SPECS_HINT}`} className={`${field} col-span-2 font-mono text-xs`} />
           <textarea name="brandAliases" rows={2} placeholder="Brand aliases, comma or line separated (e.g. AP)" className={field} />
           <textarea name="modelAliases" rows={2} placeholder="Model aliases (e.g. RO, Jumbo)" className={field} />
           <textarea name="specBullets" rows={3} placeholder="Spec bullets (one per line)" className={`${field} col-span-2`} />

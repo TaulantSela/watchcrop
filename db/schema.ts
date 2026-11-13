@@ -17,6 +17,9 @@ import {
  */
 export type CropSpec = { x: number; y: number; w: number; h: number; blur: number };
 
+/** A region of the master (a logo, a wordmark, signed text) blurred out of every crop. */
+export type MaskRect = { x: number; y: number; w: number; h: number };
+
 /** One watch in the catalog. We own the photo for every Tier-1 entry. */
 export const watches = pgTable(
   "watches",
@@ -37,8 +40,15 @@ export const watches = pgTable(
     affiliateUrl: text("affiliate_url"), // destination URL (with your tag)
 
     // --- Image + crops ---
-    masterBlobKey: text("master_blob_key"), // Vercel Blob key of the high-res master
+    masterBlobKey: text("master_blob_key"), // private Blob pathname of the master photo
+    // Pixel size of the master after EXIF rotation: the space crop and mask rectangles live in.
+    masterWidth: integer("master_width"),
+    masterHeight: integer("master_height"),
     cropSpecs: jsonb("crop_specs").$type<CropSpec[]>().default([]), // 6 entries
+    logoMasks: jsonb("logo_masks").$type<MaskRect[]>().default([]),
+    // Private Blob pathnames of the 6 cut crops, exactly the images the logo
+    // check signed off and the game serves. Set together with cropSpecs.
+    cropKeys: jsonb("crop_keys").$type<string[]>().default([]),
 
     // --- Compliance / provenance (the scheduler refuses puzzles missing this) ---
     distinctiveDesign: boolean("distinctive_design").notNull().default(false), // trade-dress watchlist

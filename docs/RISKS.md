@@ -29,7 +29,7 @@ This is a tiny daily **editorial business** wearing a software costume. The bott
 **Mitigations:**
 - Build a **180-day puzzle buffer** *before* launch and track it as a solvency metric with a hard restock trigger.
 - Batch-capture via "borrow your watches for photos" deals with local ADs / microbrands / collectors (trade: affiliate link + reveal credit + sponsored-round priority).
-- One master photo → all 6 crops ([scripts/cut.ts](../scripts/cut.ts)).
+- One master photo → all 6 crops, cut on upload, with logo masks blurred out of every crop ([lib/crops.ts](../lib/crops.ts)).
 - A named **"no publish without a verified reference"** QA gate.
 - An evergreen safe-puzzle fallback pool so a bad photo week can never break the daily cadence.
 
@@ -81,7 +81,7 @@ These are intentional shortcuts for a runnable demo. Close them before productio
 | Area | Demo state | Production need |
 | --- | --- | --- |
 | Database | In-process **PGlite** (in-memory, per-process, re-seeds on restart) | Real **Neon Postgres** via `DATABASE_URL` (the code already switches automatically) |
-| Images | Generated SVG art ([lib/cropImage.ts](../lib/cropImage.ts)) | Your own photos, cut by [scripts/cut.ts](../scripts/cut.ts), served from Vercel Blob; update the crop route to serve them |
+| Images | Generated SVG art ([lib/cropImage.ts](../lib/cropImage.ts)) for the demo catalog | Your own photos, uploaded and cut in `/admin/crop`, stored in a private Vercel Blob store and streamed by the token-gated crop route |
 | Stats / streaks | `localStorage` only (per-device) | Accounts for cross-device streaks (optional; weigh against the no-login casual funnel) |
 | "Solved today" counter | Reads from one process's DB | Shared store (Postgres is fine; Redis is faster) |
 | Monetization | Affiliate link + market link | Real affiliate IDs, sponsored-puzzle inventory, FTC-reviewed copy |
