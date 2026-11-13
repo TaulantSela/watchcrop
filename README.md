@@ -21,7 +21,7 @@ In-depth guides live in [docs/](docs/):
 
 ## Stack
 
-- **Next.js 15** (App Router) on **Vercel**
+- **Next.js 16** (App Router) on **Vercel**
 - **Neon Postgres** + **Drizzle ORM**
 - **Tailwind v4**
 - **Fuse.js** client-side autocomplete
