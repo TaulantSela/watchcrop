@@ -95,6 +95,28 @@ describe("cutting", () => {
   });
 });
 
+describe("logo mask edge", () => {
+  it("fades into the dial instead of ending in a hard box edge", async () => {
+    const { image, size } = await orientMaster(await dialWithLogo());
+    const whole = { x: 150, y: 0, w: 900, h: 900, blur: 0 };
+    const specs = [...defaultCropSpecs(size).slice(0, 5), whole];
+    const [masked] = (await cutCrops(image, specs, [LOGO])).slice(5);
+    // A strip across the mask's left edge, in crop-6 pixels.
+    const scale = CROP_SIZE / 900;
+    const edgeX = Math.round((LOGO.x - whole.x) * scale);
+    const strip = { left: edgeX - 40, top: Math.round((LOGO.y + 40) * scale), width: 70, height: 10 };
+    const { data, info } = await sharp(masked).extract(strip).raw().toBuffer({ resolveWithObject: true });
+    let worst = 0;
+    for (let y = 0; y < info.height; y++) {
+      for (let x = 0; x + 1 < info.width; x++) {
+        const i = (y * info.width + x) * info.channels;
+        worst = Math.max(worst, Math.abs(data[i + info.channels] - data[i]));
+      }
+    }
+    expect(worst).toBeLessThan(12);
+  });
+});
+
 describe("crop paths", () => {
   it("change whenever the master, rectangles or masks change", () => {
     const specs = defaultCropSpecs({ width: 1200, height: 900 });

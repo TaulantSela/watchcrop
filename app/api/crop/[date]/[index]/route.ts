@@ -16,9 +16,6 @@ export async function GET(
     return NextResponse.json({ error: "bad crop index" }, { status: 400 });
   }
 
-  // Teaser strip on the landing page is public (no token, no real answer).
-  if (date === "teaser") return svg(placeholderCropSvg(seedFrom(date), cropIndex));
-
   const token = new URL(req.url).searchParams.get("t") ?? "";
   if (!verifyCrop(date, cropIndex, token)) {
     // You only get a crop you've earned. Future crops of today's watch are

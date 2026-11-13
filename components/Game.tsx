@@ -9,6 +9,11 @@ import { horologyScore, medalForCrop } from "@/lib/scoring";
 import { EMPTY_STATS, liveStreak, parseStats, recordResult, type Stats } from "@/lib/stats";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_NAME ?? "WatchCrop";
+/**
+ * The address shares point at. Set NEXT_PUBLIC_SITE_URL to the public site so
+ * a share from a preview deployment (or a recording) still links to the game.
+ */
+const SHARE_HOST = process.env.NEXT_PUBLIC_SITE_URL ? new URL(process.env.NEXT_PUBLIC_SITE_URL).host : null;
 
 type Meta =
   | { available: true; date: string; puzzleNumber: number; maxCrops: number; firstCropUrl: string }
@@ -393,7 +398,7 @@ export function Game() {
     streak,
     siteName: SITE,
     score,
-    url: `${location.host}/s`,
+    url: `${SHARE_HOST ?? location.host}/s`,
   });
 
   return (
