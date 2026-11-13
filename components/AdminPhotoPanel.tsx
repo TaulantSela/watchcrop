@@ -66,13 +66,11 @@ function parseRects<T>(raw: string): T[] | null {
 
 export function PhotoPanel({
   watch,
-  token,
   busy,
   onSaveCrops,
   onMessage,
 }: {
   watch: PhotoInfo;
-  token: string;
   busy: boolean;
   onSaveCrops: (watchId: number, cropSpecs: Crop[], logoMasks: Rect[]) => void;
   onMessage: (ok: boolean, text: string) => void;
@@ -83,7 +81,7 @@ export function PhotoPanel({
   const crops = useMemo(() => parseRects<Crop>(cropsText), [cropsText]);
   const masks = useMemo(() => parseRects<Rect>(masksText), [masksText]);
   const photo = (file: string, v: string | null) =>
-    `/api/admin/photo/${watch.id}/${file}?token=${encodeURIComponent(token)}&v=${encodeURIComponent(v ?? "")}`;
+    `/api/admin/photo/${watch.id}/${file}?v=${encodeURIComponent(v ?? "")}`;
 
   async function upload(file: File) {
     setUploading(true);
@@ -91,7 +89,7 @@ export function PhotoPanel({
       const form = new FormData();
       form.set("watchId", String(watch.id));
       form.set("file", await toUploadJpeg(file), "master.jpg");
-      const res = await fetch("/api/admin/master", { method: "POST", headers: { "x-admin-token": token }, body: form });
+      const res = await fetch("/api/admin/master", { method: "POST", body: form });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error([data.error ?? `error ${res.status}`, ...(data.problems ?? [])].join("\n• "));
       onMessage(true, `Uploaded (${data.width}×${data.height}) and cut default crops. Adjust them, then check for logos.`);

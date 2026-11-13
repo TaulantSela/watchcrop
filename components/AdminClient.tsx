@@ -39,13 +39,11 @@ function text(v: FormDataEntryValue | null): string | undefined {
 }
 
 export function AdminClient({
-  token,
   today,
   runway,
   upcoming,
   watches,
 }: {
-  token: string;
   today: string;
   runway: Runway;
   upcoming: UpcomingDay[];
@@ -61,7 +59,7 @@ export function AdminClient({
     try {
       const res = await fetch("/api/admin", {
         method: "POST",
-        headers: { "content-type": "application/json", "x-admin-token": token },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
@@ -141,7 +139,7 @@ export function AdminClient({
       )}
 
       {/* --- Runway: the solvency metric --- */}
-      <section className="rounded-xl border border-white/10 bg-[var(--panel)] p-4">
+      <section id="runway" className="scroll-mt-6 rounded-xl border border-white/10 bg-[var(--panel)] p-4">
         <h2 className="mb-1 font-semibold">Runway</h2>
         {runway.days === 0 ? (
           <p className="font-semibold text-red-400">Today ({today}) has no puzzle.</p>
@@ -186,7 +184,7 @@ export function AdminClient({
       </section>
 
       {/* --- Schedule --- */}
-      <section>
+      <section id="schedule" className="scroll-mt-6">
         <h2 className="mb-3 font-semibold">Schedule a puzzle</h2>
         <form onSubmit={schedule} className="flex flex-wrap gap-3">
           <select name="watchId" required className={field} defaultValue="">
@@ -211,7 +209,7 @@ export function AdminClient({
       </section>
 
       {/* --- Catalog + readiness --- */}
-      <section>
+      <section id="catalog" className="scroll-mt-6">
         <h2 className="mb-3 font-semibold">Catalog ({watches.length})</h2>
         <ul className="flex flex-col gap-3">
           {watches.map((w) => (
@@ -252,7 +250,6 @@ export function AdminClient({
               {editing === w.id && (
                 <PhotoPanel
                   watch={w.photo}
-                  token={token}
                   busy={busy}
                   onSaveCrops={saveCrops}
                   onMessage={(ok, text) => setMsg({ ok, text })}
@@ -264,7 +261,7 @@ export function AdminClient({
       </section>
 
       {/* --- Add watch --- */}
-      <section>
+      <section id="add-watch" className="scroll-mt-6">
         <h2 className="mb-1 font-semibold">Add a watch</h2>
         <p className="mb-3 text-xs text-[var(--muted)]">Save it first, then add its photo under Photo &amp; crops.</p>
         <form onSubmit={addWatch} className="grid grid-cols-2 gap-3">
