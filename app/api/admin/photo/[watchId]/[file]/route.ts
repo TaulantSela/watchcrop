@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { isAdminToken } from "@/lib/admin-auth";
+import { isAdminRequest } from "@/lib/admin-auth";
 import { findWatch } from "@/lib/photo-pipeline";
 import { photoStore, PhotoStoreMissingError } from "@/lib/photo-store";
 
@@ -11,13 +11,13 @@ const PREVIEW_SIDE = 1600;
 /**
  * Admin-only view of a watch's private photos, for authoring and the logo
  * check: `master` (a downscaled, EXIF-rotated preview) or a crop `0`–`5`
- * (the stored file, exactly what players get). GET …?token=…
+ * (the stored file, exactly what players get). Signed-in admin only.
  */
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ watchId: string; file: string }> },
 ) {
-  if (!isAdminToken(new URL(req.url).searchParams.get("token"))) return new Response("unauthorized", { status: 401 });
+  if (!isAdminRequest(req)) return new Response("unauthorized", { status: 401 });
 
   const { watchId, file } = await params;
   const watch = await findWatch(Number(watchId));

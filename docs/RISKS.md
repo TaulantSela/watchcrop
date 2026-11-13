@@ -69,7 +69,7 @@ Current scaffold (fix before/at launch):
 
 - **Abuse limits on the write endpoints.** `/api/guess` (60 per 10 min) and `/api/waitlist` (10 per hour) are rate-limited per network in Postgres ([lib/rate-limit.ts](../lib/rate-limit.ts), keyed by a secret-keyed hash of the IP, swept after a day) and checked by Vercel BotID ([lib/botcheck.ts](../lib/botcheck.ts)). Both fail open so an outage never blocks play. A patient script under the limit can still enumerate brands on crop 1, but it only spoils its own game.
 - **Client can force the reveal early** by POSTing `kind: "giveUp"`, and clearing storage restarts the day at crop 1 — but both only spoil *their own* game (no per-user server state without accounts). Acceptable for MVP. Crops themselves unlock strictly in order: `/api/guess` demands the token of the crop being acted on.
-- **Admin token is passed in the URL query** (`/admin/crop?token=…`) and as a header for the API. Fine for a solo operator over HTTPS, but it can leak via browser history / referer logs. Move to a proper auth/session before adding any collaborator.
+- **One shared admin token.** You sign in once at `/admin` and get a 30-day session cookie (HttpOnly, SameSite=Strict, an HMAC of its expiry keyed by `ADMIN_TOKEN`, never the token itself), so the token no longer sits in URLs. Rotating `ADMIN_TOKEN` signs every session out. Cookie-authenticated writes also need a same-site `Origin`. It is still one shared secret: before adding any collaborator, move to per-person accounts.
 - **Demo secrets** in [.env](../.env) (`GUESS_SECRET`, `ADMIN_TOKEN`) are weak placeholders. Generate real ones (`openssl rand -hex 32`) for any deployment — and never commit `.env`.
 
 ---

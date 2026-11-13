@@ -39,7 +39,7 @@ npm run dev
 
 - Landing / waitlist: http://localhost:3000
 - Game (set `NEXT_PUBLIC_GAME_LIVE=true` first): http://localhost:3000/play
-- Admin (content): http://localhost:3000/admin/crop?token=YOUR_ADMIN_TOKEN
+- Admin: http://localhost:3000/admin. Sign in once with your `ADMIN_TOKEN`; a **Getting started** checklist at the top walks you from the first tagged link to going live.
 
 `openssl rand -hex 32` makes a good `GUESS_SECRET` / `ADMIN_TOKEN`.
 
@@ -49,7 +49,7 @@ npm run dev
 | --- | --- |
 | `/` | Waitlist landing (de-risk). Switches to a "Play" CTA when the game is live. |
 | `/play` | The daily game (client component `components/Game.tsx`). |
-| `/admin/crop` | Token-gated tool: add watches, upload photos, set crops + logo masks, sign off, schedule. |
+| `/admin/crop` | Admin (sign in with `ADMIN_TOKEN`, 30-day session): a self-updating Getting started checklist, demand, runway, add watches, photos + logo masks, sign off, schedule. |
 | `GET /api/puzzle/today` | Today's puzzle **without the answer** — only the crop-0 URL. |
 | `POST /api/guess` | Server-side check. Returns `{correct}` + the **next** signed crop, or the reveal on solve/exhaust. |
 | `GET /api/crop/[date]/[index]` | Serves a crop **only with a valid HMAC token**, streamed from the private store (demo art for watches with no photo). |

@@ -13,6 +13,8 @@ export type Limit = { name: string; max: number; windowSec: number };
 export const LIMITS = {
   waitlist: { name: "waitlist", max: 10, windowSec: 60 * 60 },
   guess: { name: "guess", max: 60, windowSec: 10 * 60 },
+  // The token can't be guessed anyway; this just keeps the log quiet.
+  signin: { name: "signin", max: 10, windowSec: 10 * 60 },
 } satisfies Record<string, Limit>;
 
 /** Vercel sets these to the real client address; a client can't spoof them there. */

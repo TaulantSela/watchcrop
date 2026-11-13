@@ -3,7 +3,7 @@ import { z } from "zod";
 import { eq, min } from "drizzle-orm";
 import { getDb } from "@/db";
 import { aliases, puzzles, watches } from "@/db/schema";
-import { isAdminToken } from "@/lib/admin-auth";
+import { isAdminRequest } from "@/lib/admin-auth";
 import { todayKey } from "@/lib/daily";
 import { normalize } from "@/lib/normalize";
 import { cutAndStore, isScheduled } from "@/lib/photo-pipeline";
@@ -71,7 +71,7 @@ const fail = (status: number, error: string, extra: Record<string, unknown> = {}
   NextResponse.json({ error, ...extra }, { status });
 
 export async function POST(req: Request) {
-  if (!isAdminToken(req.headers.get("x-admin-token"))) return fail(401, "unauthorized");
+  if (!isAdminRequest(req)) return fail(401, "unauthorized");
 
   let body;
   try {

@@ -6,7 +6,7 @@ const pct = (v: number | null) => (v === null ? "—" : `${v}%`);
  * The Phase 0 gate on one screen: signups, conversion, and which community
  * they came from. Tag posted links with ?utm_source=reddit&utm_campaign=…
  */
-export function DemandPanel({ stats, token }: { stats: DemandStats; token: string }) {
+export function DemandPanel({ stats }: { stats: DemandStats }) {
   const week = stats.days.slice(-7).reduce(
     (a, d) => ({ visits: a.visits + d.visits, signups: a.signups + d.signups }),
     { visits: 0, signups: 0 },
@@ -14,11 +14,11 @@ export function DemandPanel({ stats, token }: { stats: DemandStats; token: strin
   const max = Math.max(1, ...stats.days.map((d) => d.visits));
 
   return (
-    <section className="mb-10 flex flex-col gap-5 rounded-xl border border-white/10 bg-[var(--panel)] p-4">
+    <section id="demand" className="mb-10 flex scroll-mt-6 flex-col gap-5 rounded-xl border border-white/10 bg-[var(--panel)] p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 className="font-semibold">Demand (Phase 0)</h2>
         <a
-          href={`/api/admin/export?token=${encodeURIComponent(token)}`}
+          href="/api/admin/export"
           className="rounded border border-white/15 px-3 py-1.5 text-sm hover:border-white/40"
         >
           Export waitlist CSV

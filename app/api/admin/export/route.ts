@@ -1,15 +1,14 @@
 import { asc } from "drizzle-orm";
 import { getDb } from "@/db";
 import { waitlist } from "@/db/schema";
-import { isAdminToken } from "@/lib/admin-auth";
+import { isAdminRequest } from "@/lib/admin-auth";
 import { csvField } from "@/lib/csv";
 
 export const runtime = "nodejs";
 
-/** Waitlist as CSV, for the launch email. GET /api/admin/export?token=… */
+/** Waitlist as CSV, for the launch email. Signed-in admin only. */
 export async function GET(req: Request) {
-  const token = new URL(req.url).searchParams.get("token");
-  if (!isAdminToken(token)) return new Response("unauthorized", { status: 401 });
+  if (!isAdminRequest(req)) return new Response("unauthorized", { status: 401 });
 
   const db = await getDb();
   const rows = await db.select().from(waitlist).orderBy(asc(waitlist.createdAt));

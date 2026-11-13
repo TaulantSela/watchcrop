@@ -3,7 +3,7 @@ import sharp from "sharp";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { watches } from "@/db/schema";
-import { isAdminToken } from "@/lib/admin-auth";
+import { isAdminRequest } from "@/lib/admin-auth";
 import { defaultCropSpecs, MIN_MASTER_SIDE, orientMaster } from "@/lib/crops";
 import { cutAndStore, findWatch, isScheduled } from "@/lib/photo-pipeline";
 import { photoStore, PhotoStoreMissingError } from "@/lib/photo-store";
@@ -21,7 +21,7 @@ const fail = (status: number, error: string, problems: string[] = []) =>
  * A new photo resets the crops, the logo masks and the logo check.
  */
 export async function POST(req: Request) {
-  if (!isAdminToken(req.headers.get("x-admin-token"))) return fail(401, "unauthorized");
+  if (!isAdminRequest(req)) return fail(401, "unauthorized");
 
   let form: FormData;
   try {
