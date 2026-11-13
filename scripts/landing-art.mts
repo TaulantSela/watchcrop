@@ -29,9 +29,13 @@ const CHROME = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Conte
 const OUT = "public/landing";
 const WORK = ".art";
 
-/** The watch: an original blue diver from Watchcraft's options. */
+/**
+ * The watch: an original blue diver from Watchcraft's options. Crown at 3: at
+ * 3.8 a diver gets a crescent crown guard, which reads as a lump on the case
+ * from the front.
+ */
 const WATCH_QUERY =
-  "shape=round-diver&size=42&crown=3.8&bezel=rotating&insert=min60&insertColor=blue&dial=blue&finish=sunburst" +
+  "shape=round-diver&size=42&crown=3&bezel=rotating&insert=min60&insertColor=blue&dial=blue&finish=sunburst" +
   "&indices=lume&hands=lume&seconds=white&strap=five&auto=off";
 
 /** The master photo: the render, centered on a studio backdrop. */
