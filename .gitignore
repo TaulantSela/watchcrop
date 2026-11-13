@@ -12,3 +12,6 @@ next-env.d.ts
 
 # Local photo store (lib/photo-store.ts) when no Blob store is configured
 /.photos
+
+# Landing-art work files (scripts/landing-art.mts)
+/.art

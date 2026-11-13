@@ -55,18 +55,39 @@ export async function orientMaster(master: Buffer): Promise<{ image: Buffer; siz
   return { image: data, size: { width: info.width, height: info.height } };
 }
 
-/** Blurs each mask region so hard that no lettering survives, in every crop. */
+/**
+ * Blurs each mask region so hard that no lettering survives, in every crop.
+ * The blurred patch is fully opaque over the mask itself and fades out over a
+ * margin around it, so it reads as a soft smudge rather than a pasted box.
+ */
 async function applyMasks(image: Buffer, masks: MaskRect[]): Promise<Buffer> {
   if (!masks.length) return image;
+  const { width: W = 0, height: H = 0 } = await sharp(image).metadata();
   const patches = await Promise.all(
-    masks.map(async (m) => ({
-      input: await sharp(image)
-        .extract({ left: m.x, top: m.y, width: m.w, height: m.h })
+    masks.map(async (m) => {
+      const feather = Math.max(8, Math.round(Math.min(m.w, m.h) * 0.35));
+      const left = Math.max(0, m.x - feather);
+      const top = Math.max(0, m.y - feather);
+      const width = Math.min(W, m.x + m.w + feather) - left;
+      const height = Math.min(H, m.y + m.h + feather) - top;
+
+      const blurred = await sharp(image)
+        .extract({ left, top, width, height })
         .blur(Math.max(20, Math.min(m.w, m.h) / 3))
-        .toBuffer(),
-      left: m.x,
-      top: m.y,
-    })),
+        .removeAlpha()
+        .toBuffer();
+      // Alpha: a rounded rect a little larger than the mask, softened, so it's
+      // ~100% over the mask (3σ inside the edge) and fades to ~0 at the margin.
+      const grow = feather * 0.6;
+      const rect = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect x="${m.x - left - grow}" y="${m.y - top - grow}" width="${m.w + 2 * grow}" height="${m.h + 2 * grow}" rx="${grow}" fill="#fff"/></svg>`;
+      const alpha = await sharp(Buffer.from(rect))
+        .flatten({ background: "#000" })
+        .blur(feather * 0.2)
+        .extractChannel(0)
+        .png()
+        .toBuffer();
+      return { input: await sharp(blurred).joinChannel(alpha).png().toBuffer(), left, top };
+    }),
   );
   return sharp(image).composite(patches).toBuffer();
 }

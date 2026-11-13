@@ -81,7 +81,7 @@ These are intentional shortcuts for a runnable demo. Close them before productio
 | Area | Demo state | Production need |
 | --- | --- | --- |
 | Database | In-process **PGlite** (in-memory, per-process, re-seeds on restart) | Real **Neon Postgres** via `DATABASE_URL` (the code already switches automatically) |
-| Images | Generated SVG art ([lib/cropImage.ts](../lib/cropImage.ts)) for the demo catalog | Your own photos, uploaded and cut in `/admin/crop`, stored in a private Vercel Blob store and streamed by the token-gated crop route |
+| Images | Generated SVG art ([lib/cropImage.ts](../lib/cropImage.ts)) for the demo catalog; the landing page uses an original Watchcraft 3D render ([scripts/landing-art.mts](../scripts/landing-art.mts)) | Your own photos, uploaded and cut in `/admin/crop`, stored in a private Vercel Blob store and streamed by the token-gated crop route |
 | Stats / streaks | `localStorage` only (per-device) | Accounts for cross-device streaks (optional; weigh against the no-login casual funnel) |
 | "Solved today" counter | Reads from one process's DB | Shared store (Postgres is fine; Redis is faster) |
 | Monetization | Affiliate link + market link | Real affiliate IDs, sponsored-puzzle inventory, FTC-reviewed copy |

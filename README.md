@@ -62,6 +62,13 @@ npm run dev
 
 The answer (brand/model/reference/full image/affiliate link) is **never serialized into the page or any API response** until you solve or exhaust all 6 crops. Each guess POSTs to the server, which checks the answer server-side and returns only `{correct}` plus an opaque, HMAC-signed URL for the next crop. Future crops of today's watch are unreachable without earning the token (`lib/sign.ts`).
 
+## Landing art and the demo video
+
+The landing strip, the link preview and the looping demo round all use an **original 3D watch** rendered in [Watchcraft](https://watchcraft-app.vercel.app) (Taulant's own configurator: procedural watches, no third-party photos or models), so there are no image rights to clear. They are cut by the same pipeline as real puzzles, logo mask included.
+
+- `npm run art:landing` renders the watch and writes `public/landing/crop-{1,3,6}.webp` and `og-{1,3,6}.jpg` (work files go to `./.art`). Needs a local Chrome.
+- `npm run art:demo -- http://localhost:3000` plays a sample round on a local server with an **empty** database and writes `public/landing/demo.{mp4,webm}` and `demo-poster.webp`. The setup steps are at the top of `recordDemo` in [scripts/landing-art.mts](scripts/landing-art.mts).
+
 ## The image problem (read before scaling)
 
 Copyright lives in the **photograph**, owned by whoever took it — not the brand, not the watch owner. **Cropping and hiding the logo do NOT cure copyright infringement.** A daily game that grabs web images manufactures one fresh, willful infringement per day.
