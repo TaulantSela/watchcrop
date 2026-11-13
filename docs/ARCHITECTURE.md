@@ -4,7 +4,7 @@ How WatchCrop is put together, and the load-bearing decisions.
 
 ## Stack
 
-- **Next.js 15** (App Router) — one deployable unit; UI + API in the same project.
+- **Next.js 16** (App Router) — one deployable unit; UI + API in the same project.
 - **Drizzle ORM** over **Postgres**, with a **dual driver** (see below).
 - **Tailwind v4** for styling.
 - **Fuse.js** for client-side fuzzy autocomplete.

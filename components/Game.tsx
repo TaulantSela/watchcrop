@@ -124,6 +124,13 @@ function tokenOf(cropUrl: string | undefined): string {
   return cropUrl ? (new URL(cropUrl, "http://local").searchParams.get("t") ?? "") : "";
 }
 
+/** Today's puzzle and the autocomplete index. Pure fetch: no React state. */
+async function fetchBootstrap(): Promise<{ meta: Meta; catalog: Catalog }> {
+  const [mRes, cRes] = await Promise.all([fetch("/api/puzzle/today"), fetch("/api/catalog")]);
+  if (!mRes.ok || !cRes.ok) throw new Error("load failed");
+  return { meta: await mRes.json(), catalog: await cRes.json() };
+}
+
 export function Game() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -138,33 +145,29 @@ export function Game() {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
   // --- bootstrap: today's puzzle, the autocomplete index, and any saved game ---
-  const load = useCallback(async () => {
-    setLoadError(false);
-    try {
-      const [mRes, cRes] = await Promise.all([fetch("/api/puzzle/today"), fetch("/api/catalog")]);
-      if (!mRes.ok || !cRes.ok) throw new Error("load failed");
-      const m: Meta = await mRes.json();
-      const c: Catalog = await cRes.json();
-      const s = parseStats(storageGet(STATS_KEY));
-
-      setStats(s);
-      setCatalog(c);
-      if (m.available) {
-        pruneOldGames(m.date);
-        const saved = loadGame(m.date);
-        if (saved) {
-          setGame(saved); // resume mid-game, or show the finished board + reveal
-        } else if (s.lastDate === m.date) {
-          // Finished today on a build that didn't save the board.
-          setGame({ ...newGame(m.firstCropUrl), finished: true, solvedCropIndex: s.lastSolvedCrop });
-        } else {
-          setGame(newGame(m.firstCropUrl));
+  // State is only set in the promise callbacks, never synchronously in the effect.
+  const load = useCallback(() => {
+    fetchBootstrap().then(
+      ({ meta: m, catalog: c }) => {
+        const s = parseStats(storageGet(STATS_KEY));
+        setStats(s);
+        setCatalog(c);
+        if (m.available) {
+          pruneOldGames(m.date);
+          const saved = loadGame(m.date);
+          if (saved) {
+            setGame(saved); // resume mid-game, or show the finished board + reveal
+          } else if (s.lastDate === m.date) {
+            // Finished today on a build that didn't save the board.
+            setGame({ ...newGame(m.firstCropUrl), finished: true, solvedCropIndex: s.lastSolvedCrop });
+          } else {
+            setGame(newGame(m.firstCropUrl));
+          }
         }
-      }
-      setMeta(m);
-    } catch {
-      setLoadError(true);
-    }
+        setMeta(m);
+      },
+      () => setLoadError(true),
+    );
   }, []);
 
   useEffect(() => {
@@ -337,7 +340,13 @@ export function Game() {
     return (
       <Centered>
         Couldn&apos;t load today&apos;s watch.{" "}
-        <button onClick={load} className="text-[var(--gold)] underline">
+        <button
+          onClick={() => {
+            setLoadError(false);
+            load();
+          }}
+          className="text-[var(--gold)] underline"
+        >
           Try again
         </button>
       </Centered>
