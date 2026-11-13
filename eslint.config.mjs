@@ -5,7 +5,7 @@ import nextTs from "eslint-config-next/typescript";
 export default defineConfig([
   ...nextVitals,
   ...nextTs,
-  globalIgnores([".next/**", "node_modules/**", "next-env.d.ts", "crops/**", "masters/**"]),
+  globalIgnores([".next/**", "node_modules/**", "next-env.d.ts", ".photos/**"]),
   {
     rules: {
       // `const { action: _a, ...values } = body` drops a key on purpose.

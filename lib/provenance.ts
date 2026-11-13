@@ -14,6 +14,8 @@ export type GateInput = {
   distinctiveDesign: boolean;
   masterBlobKey: string | null;
   cropSpecs: unknown[] | null;
+  /** The six cut crop files; set together with cropSpecs. */
+  cropKeys: unknown[] | null;
   logoQaAt: Date | string | null;
 };
 
@@ -36,6 +38,7 @@ export function schedulingProblems(w: GateInput): string[] {
 
   if (!w.masterBlobKey) problems.push("No master photo.");
   if ((w.cropSpecs?.length ?? 0) !== 6) problems.push("Needs 6 crop rectangles.");
+  else if ((w.cropKeys?.length ?? 0) !== 6) problems.push("Crops not cut from the master yet.");
   if (!w.logoQaAt) problems.push("Crops not yet checked for surviving logos.");
 
   return problems;

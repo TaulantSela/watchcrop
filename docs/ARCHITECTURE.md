@@ -42,13 +42,16 @@ lib/
   share.ts                     Spoiler-free share string
   game.ts                      Server-only DB queries
   reveal.ts                    Builds the reveal payload (the "store")
-  cropImage.ts                 DEMO placeholder art (SVG)
+  cropImage.ts                 DEMO placeholder art (SVG), for watches with no photo
+  crops.ts                     Photo pipeline: default crop ladder, logo masks, cutting (sharp)
+  photo-pipeline.ts            Load master -> cut -> store; "scheduled = frozen" rule
+  photo-store.ts               Private Vercel Blob store (local ./.photos off Vercel)
+  rate-limit.ts, botcheck.ts   Abuse limits on the write endpoints
   seed-data.ts                 Demo catalog + seed function
   bootstrap.ts                 Server-startup warmup
 instrumentation.ts             Runs bootstrap once on server start
 scripts/
   seed.ts                      CLI seed (real Postgres)
-  cut.ts                       PRODUCTION crop pipeline (master -> 6 crops)
 ```
 
 ## The trust boundary (anti-cheat)
@@ -104,5 +107,5 @@ No cron is needed to *pick* the puzzle. [lib/daily.ts](../lib/daily.ts) computes
 
 ## Images: demo vs production
 
-- **Demo (now):** [lib/cropImage.ts](../lib/cropImage.ts) generates a stylized SVG watch that zooms out by crop index. Zero real photos → zero rights exposure → the loop runs immediately.
-- **Production:** [scripts/cut.ts](../scripts/cut.ts) cuts the 6 crops from a master photo you own (using `sharp` + the `cropSpecs` rectangles), to be stored on Vercel Blob. You then change the crop route to serve those files instead of the SVG. The token gating stays identical. **A human must QA that no logo survived** and sign it off in `/admin/crop` before the scheduler accepts the watch. The script writes to `./crops`, never `public/`, which is served to anyone and would bypass the tokens.
+- **Demo:** [lib/cropImage.ts](../lib/cropImage.ts) generates a stylized SVG watch that zooms out by crop index, for watches with no photo (the seeded demo catalog). Zero real photos → zero rights exposure.
+- **Production:** upload a master you own in `/admin/crop`. [app/api/admin/master/route.ts](../app/api/admin/master/route.ts) stores it in a **private** Vercel Blob store and [lib/crops.ts](../lib/crops.ts) cuts 6 crops with `sharp`: the `cropSpecs` rectangles, after blurring every `logoMasks` region out of the master. The cut files are content-addressed (`crops/<watch>/<hash>/<i>.webp`), shown in the admin for the logo check, and streamed byte for byte by the token-gated crop route, so **what a human signed off is exactly what players see**. Nothing in the store has a public URL. Once a watch is scheduled its photo and crops are frozen (past puzzles live in people's shares), which is also what makes the crop responses safe to cache forever.

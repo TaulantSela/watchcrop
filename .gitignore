@@ -9,5 +9,6 @@ build
 .vercel
 *.tsbuildinfo
 next-env.d.ts
-/masters
-/crops
+
+# Local photo store (lib/photo-store.ts) when no Blob store is configured
+/.photos

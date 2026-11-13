@@ -6,9 +6,8 @@ import { MAX_CROPS } from "./daily";
  * (whole watch). This lets the game run end-to-end with ZERO real photos —
  * which also means zero image-rights exposure while you validate demand.
  *
- * PRODUCTION: replace this route's body with a fetch of the pre-cut crop from
- * Vercel Blob (cut once from your own master via scripts/cut.ts). The token
- * gating in lib/sign.ts stays exactly the same.
+ * Served only for watches that have no photo yet (the seeded demo catalog).
+ * Real watches get their cut crops from the private store (lib/crops.ts).
  */
 
 /** Cheap deterministic string hash -> seed, so all crops of one day match. */

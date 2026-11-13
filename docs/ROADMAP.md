@@ -26,7 +26,7 @@ These cost ~$0 and gate everything. Don't build the photo library until they pas
 ## ▶️ Phase 1 — Real foundation
 
 - **Wire Neon Postgres** — create a free project, set `DATABASE_URL` in `.env`, run `npm run db:push && npm run seed`. The code switches drivers automatically; waitlist/stats now persist.
-- **Real photo pipeline** — shoot your own masters, define `cropSpecs`, run [scripts/cut.ts](../scripts/cut.ts), store crops on Vercel Blob, and update [app/api/crop/[date]/[index]/route.ts](../app/api/crop/%5Bdate%5D/%5Bindex%5D/route.ts) to serve them instead of the SVG. **Human-QA every crop for surviving logos.**
+- **Shoot the masters.** The pipeline is built: upload in `/admin/crop`, set crops + logo masks, re-cut, sign off. **Human-QA every crop for surviving logos.**
 - **Build the 180-day puzzle buffer** and track it.
 - **Lock the name** — trademark search, no watch brand, not a Wordle clone.
 
@@ -46,7 +46,7 @@ These cost ~$0 and gate everything. Don't build the photo library until they pas
 
 ## Fast-follows / deferred features
 
-- **Drag-to-crop authoring UI** in `/admin` (today: `cropSpecs` JSON + [scripts/cut.ts](../scripts/cut.ts)).
+- **Drag-to-crop authoring UI** in `/admin` (today: rectangle JSON with a live overlay on the photo).
 - **Accounts** for cross-device streaks (weigh against the no-login casual funnel).
 - **Themed Weeks** / **Movement-only Hardcore** mode.
 - **Head-to-head** async challenge-a-friend.
