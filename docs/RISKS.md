@@ -67,7 +67,7 @@ Affiliate links require **clear disclosure**; sponsored puzzles require **"spons
 
 Current scaffold (fix before/at launch):
 
-- **No rate limiting on `/api/guess`.** A scraper could brute-force the catalog to map crop→answer. Add Upstash Redis rate limiting (also powers the live "X solved today" counter). Tracked in [ROADMAP.md](ROADMAP.md).
+- **Abuse limits on the write endpoints.** `/api/guess` (60 per 10 min) and `/api/waitlist` (10 per hour) are rate-limited per network in Postgres ([lib/rate-limit.ts](../lib/rate-limit.ts), keyed by a secret-keyed hash of the IP, swept after a day) and checked by Vercel BotID ([lib/botcheck.ts](../lib/botcheck.ts)). Both fail open so an outage never blocks play. A patient script under the limit can still enumerate brands on crop 1, but it only spoils its own game.
 - **Client can force the reveal early** by POSTing `kind: "giveUp"`, and clearing storage restarts the day at crop 1 — but both only spoil *their own* game (no per-user server state without accounts). Acceptable for MVP. Crops themselves unlock strictly in order: `/api/guess` demands the token of the crop being acted on.
 - **Admin token is passed in the URL query** (`/admin/crop?token=…`) and as a header for the API. Fine for a solo operator over HTTPS, but it can leak via browser history / referer logs. Move to a proper auth/session before adding any collaborator.
 - **Demo secrets** in [.env](../.env) (`GUESS_SECRET`, `ADMIN_TOKEN`) are weak placeholders. Generate real ones (`openssl rand -hex 32`) for any deployment — and never commit `.env`.

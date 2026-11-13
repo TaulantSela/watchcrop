@@ -3,7 +3,7 @@ import Link from "next/link";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_NAME ?? "WatchCrop";
 const CONTACT = process.env.NEXT_PUBLIC_CONTACT_EMAIL;
-const UPDATED = "10 November 2026";
+const UPDATED = "13 November 2026";
 
 export const metadata: Metadata = {
   title: `Privacy · ${SITE}`,
@@ -69,6 +69,13 @@ export default function Privacy() {
           The site is hosted on Vercel and the database runs on Neon. Like any web host, their
           servers process standard request data (such as IP addresses) to deliver the site and keep
           it secure. Your email is not shared with anyone else.
+        </p>
+        <p>
+          To keep scripted sign-ups and guesses out, those two requests are checked by Vercel
+          BotID, which looks at signals from your browser without cookies or a puzzle to solve.
+          The site also counts requests per network to stop floods: the counter is keyed by a
+          one-way, secret-keyed hash of your IP address (never the address itself) and is deleted
+          within a day.
         </p>
       </section>
 

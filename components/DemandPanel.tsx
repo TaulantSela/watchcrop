@@ -37,6 +37,12 @@ export function DemandPanel({ stats, token }: { stats: DemandStats; token: strin
           </div>
         ))}
       </div>
+      {stats.flaggedBots > 0 && (
+        <p className="text-xs text-[var(--muted)]">
+          {stats.flaggedBots.toLocaleString()} more signup{stats.flaggedBots === 1 ? "" : "s"} flagged as
+          bots by BotID: kept in the CSV (flagged_bot), left out of every number here.
+        </p>
+      )}
 
       <div>
         <h3 className="mb-2 text-sm text-[var(--muted)]">Last 14 days (visits · signups)</h3>

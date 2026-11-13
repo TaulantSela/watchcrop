@@ -1,12 +1,15 @@
 import "server-only";
-import { gte, sql } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { visits, waitlist } from "@/db/schema";
 import { addDays } from "./schedule";
 
 export type DemandRow = { visits: number; signups: number };
 export type DemandStats = {
+  /** Signups BotID didn't flag: the number that counts. */
   totalSignups: number;
+  /** Signups BotID called bots, kept for review but left out of every number. */
+  flaggedBots: number;
   /** Last 14 UTC days, oldest first. */
   days: ({ date: string } & DemandRow)[];
   /** Last 30 days by first-touch source, biggest first. */
@@ -33,13 +36,19 @@ export async function getDemandStats(now = new Date()): Promise<DemandStats> {
   const sourceOf = (t: typeof visits | typeof waitlist) =>
     sql<string>`coalesce(${t.utmSource}, ${t.referrerHost}, 'direct')`;
   const n = sql<number>`count(*)::int`;
+  const human = eq(waitlist.flaggedBot, false);
 
-  const [[{ total }], visitDays, signupDays, visitSources, signupSources] = await Promise.all([
-    db.select({ total: n }).from(waitlist),
+  const [[{ total, flagged }], visitDays, signupDays, visitSources, signupSources] = await Promise.all([
+    db
+      .select({
+        total: sql<number>`(count(*) filter (where not ${waitlist.flaggedBot}))::int`,
+        flagged: sql<number>`(count(*) filter (where ${waitlist.flaggedBot}))::int`,
+      })
+      .from(waitlist),
     db.select({ k: dayOf(visits.createdAt), n }).from(visits).where(gte(visits.createdAt, since14)).groupBy(sql`1`),
-    db.select({ k: dayOf(waitlist.createdAt), n }).from(waitlist).where(gte(waitlist.createdAt, since14)).groupBy(sql`1`),
+    db.select({ k: dayOf(waitlist.createdAt), n }).from(waitlist).where(and(human, gte(waitlist.createdAt, since14))).groupBy(sql`1`),
     db.select({ k: sourceOf(visits), n }).from(visits).where(gte(visits.createdAt, since30)).groupBy(sql`1`),
-    db.select({ k: sourceOf(waitlist), n }).from(waitlist).where(gte(waitlist.createdAt, since30)).groupBy(sql`1`),
+    db.select({ k: sourceOf(waitlist), n }).from(waitlist).where(and(human, gte(waitlist.createdAt, since30))).groupBy(sql`1`),
   ]);
 
   const toMap = (rows: { k: string; n: number }[]) => new Map(rows.map((r) => [r.k, r.n]));
@@ -56,5 +65,5 @@ export async function getDemandStats(now = new Date()): Promise<DemandStats> {
     .map((source) => ({ source, visits: vs.get(source) ?? 0, signups: ss.get(source) ?? 0 }))
     .sort((a, b) => b.signups - a.signups || b.visits - a.visits);
 
-  return { totalSignups: total, days, sources };
+  return { totalSignups: total, flaggedBots: flagged, days, sources };
 }

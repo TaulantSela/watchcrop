@@ -27,7 +27,6 @@ These cost ~$0 and gate everything. Don't build the photo library until they pas
 
 - **Wire Neon Postgres** — create a free project, set `DATABASE_URL` in `.env`, run `npm run db:push && npm run seed`. The code switches drivers automatically; waitlist/stats now persist.
 - **Real photo pipeline** — shoot your own masters, define `cropSpecs`, run [scripts/cut.ts](../scripts/cut.ts), store crops on Vercel Blob, and update [app/api/crop/[date]/[index]/route.ts](../app/api/crop/%5Bdate%5D/%5Bindex%5D/route.ts) to serve them instead of the SVG. **Human-QA every crop for surviving logos.**
-- **Rate-limit `/api/guess`** with Upstash Redis (also powers the shared "X solved today" counter). ([RISKS.md](RISKS.md#security--abuse))
 - **Build the 180-day puzzle buffer** and track it.
 - **Lock the name** — trademark search, no watch brand, not a Wordle clone.
 

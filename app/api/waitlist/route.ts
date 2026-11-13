@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDb } from "@/db";
 import { waitlist } from "@/db/schema";
+import { isBotRequest } from "@/lib/botcheck";
+import { hit, LIMITS, tooManyRequests } from "@/lib/rate-limit";
 
 const opt = (max: number) => z.string().trim().max(max).optional();
 
@@ -35,13 +37,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, alreadyOnList: false });
   }
 
+  const limit = await hit(LIMITS.waitlist, req);
+  if (!limit.ok) return tooManyRequests(limit, "Too many sign-ups from your network. Try again later.");
+
   const email = fields.email.trim().toLowerCase();
+  const flaggedBot = await isBotRequest();
 
   try {
     const db = await getDb();
     const inserted = await db
       .insert(waitlist)
-      .values({ ...fields, email, source: fields.source ?? "landing" })
+      .values({ ...fields, email, source: fields.source ?? "landing", flaggedBot })
       .onConflictDoNothing({ target: waitlist.email })
       .returning({ id: waitlist.id });
 
