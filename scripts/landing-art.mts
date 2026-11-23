@@ -219,10 +219,16 @@ class Film {
   }
 
   write(out: string): string {
-    const list = this.frames.map((f) => `file '${f.file}'\nduration ${f.seconds.toFixed(4)}`).join("\n");
+    const step = 1 / 30;
+    const last = this.frames.at(-1)!;
+    const entries = this.frames.slice(0, -1).map((f) => [f.file, f.seconds] as const);
+    // ffmpeg holds the final frame for as long as the gap before it, and the
+    // concat format wants the last file repeated. So the last hold ends with a
+    // one-frame step, then the repeat: otherwise the last hold plays twice.
+    entries.push([last.file, Math.max(step, last.seconds - step)], [last.file, step]);
+    const list = entries.map(([file, seconds]) => `file '${file}'\nduration ${seconds.toFixed(4)}`).join("\n");
     const listFile = path.join(this.dir, "list.txt");
-    // The concat format wants the last file repeated after its duration.
-    writeFileSync(listFile, `${list}\nfile '${this.frames.at(-1)!.file}'\n`);
+    writeFileSync(listFile, `${list}\nfile '${last.file}'\n`);
     execFileSync("ffmpeg", [
       "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", listFile,
       "-vf", "fps=30,format=yuv420p", "-c:v", "libx264", "-crf", "14", "-preset", "fast", out,
