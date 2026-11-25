@@ -177,6 +177,16 @@ Both need a local Chrome.
 Don't pull the production `DATABASE_URL` into your local `.env`: local dev and
 the destructive `npm run seed` would then run against production.
 
+`npm run seed`, `npm run db:push` and `npm run db:migrate` refuse to run anyway
+unless `DATABASE_URL` is empty (the in-memory demo) or points at a database
+marked as a disposable dev database ([scripts/db-guard.ts](scripts/db-guard.ts)).
+Production is never marked, so even `seed -- --force` can't wipe it. To use a
+real Postgres for development, mark it once (never production):
+
+```sql
+COMMENT ON DATABASE neondb IS 'watchcrop:disposable';
+```
+
 ## Status
 
 Live in Phase 0, collecting waitlist signups. Known limitations and next steps:
