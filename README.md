@@ -162,7 +162,13 @@ Both need a local Chrome.
 
 - **Production needs a real Postgres** `DATABASE_URL`: on `VERCEL_ENV=production`
   the app refuses to fall back to the in-memory database, which would silently
-  drop every signup. Run `npm run db:migrate` against it once.
+  drop every signup. Production builds apply new migrations themselves:
+  `npm run build` runs `drizzle-kit migrate` before `next build` on
+  `VERCEL_ENV=production` ([scripts/migrate-on-production-build.ts](scripts/migrate-on-production-build.ts)),
+  so a merged PR's migrations land with its code. A failing migration fails the
+  build and the current version stays live. The previous version keeps serving
+  while the build runs, so keep migrations backward-compatible (add first,
+  remove in a later release).
 - **Previews** can skip `DATABASE_URL` and run the self-seeding demo, so pull
   request previews are playable without touching production data.
 - **Photos** need a private Vercel Blob store connected to the project
