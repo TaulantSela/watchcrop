@@ -2,6 +2,7 @@ import "dotenv/config";
 import { getDb, isPglite } from "../db/index";
 import { watches } from "../db/schema";
 import { seedDatabase } from "../lib/seed-data";
+import { assertDisposableDatabase } from "./db-guard";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
 /**
@@ -16,6 +17,10 @@ async function main() {
     );
     process.exit(0);
   }
+
+  // Seeding wipes data: only on a database marked as a disposable dev database, never production,
+  // even with --force (db-guard.ts).
+  await assertDisposableDatabase();
 
   const db = await getDb();
 
