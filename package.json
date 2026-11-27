@@ -36,14 +36,26 @@
     "@types/node": "^22.10.7",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@typescript/native": "npm:typescript@^7.0.2",
     "dotenv": "^16.4.7",
     "drizzle-kit": "^0.31.11",
-    "eslint": "^9.39.5",
+    "eslint": "^10.15.0",
     "eslint-config-next": "^16.4.6",
     "puppeteer-core": "^25.17.0",
     "tailwindcss": "^4.0.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vitest": "^5.1.0"
+  },
+  "overrides": {
+    "eslint-plugin-react": {
+      "eslint": "$eslint"
+    },
+    "eslint-plugin-import": {
+      "eslint": "$eslint"
+    },
+    "eslint-plugin-jsx-a11y": {
+      "eslint": "$eslint"
+    }
   }
 }
